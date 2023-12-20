@@ -1,0 +1,475 @@
+﻿<UserControl x:Class="SampleOpenCV.UserControls.CameraDataUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:local="clr-namespace:SampleOpenCV"
+             xmlns:properties="clr-namespace:SampleOpenCV.Properties"
+             mc:Ignorable="d" 
+             d:DesignHeight="775" d:DesignWidth="300">
+    <Grid>
+        <TextBlock Margin="0,8,10,0" 
+            Height="19" 
+            Width="75"
+            Text="Camera IP" 
+            HorizontalAlignment="Right" 
+            VerticalAlignment="Top" />
+        <ComboBox  Margin="0,27,0,0" 
+            Width="280" 
+            Height="21"
+            HorizontalAlignment="Center"  
+            VerticalAlignment="Top"
+            x:Name="CameraIPComboBox"
+            SelectionChanged="CameraIPComboBox_SelectionChanged"
+            ItemsSource="{Binding Path=CameraDataColl2}" >
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Path=URL}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Margin="0,53,10,0" 
+                   Height="19" 
+                   Width="75"
+                   Text="Work Station" 
+                   HorizontalAlignment="Right" 
+                   VerticalAlignment="Top" />
+        <ComboBox  Margin="0,72,0,0" 
+                   Width="280" 
+                   Height="21"
+                   HorizontalAlignment="Center"  
+                   VerticalAlignment="Top"
+                   x:Name="WorkCenterComboBox"
+                   SelectionChanged="WorkCenterComboBox_SelectionChanged"
+                   ItemsSource="{Binding Path=WorkStationColl2}">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Path=Name}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+
+        <TextBlock Margin="0,110,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Spatial Radius" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="SpatialRadius" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                      
+                    HorizontalAlignment="Left"
+                    Margin="120,110,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=SpatialRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" 
+                  VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,135,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Color Radius" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="ColorRadius" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                      
+                    HorizontalAlignment="Left"
+                    Margin="120,135,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=ColorRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" 
+                  VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,160,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Segment Length" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="SegmentLength" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                      
+                    HorizontalAlignment="Left"
+                    Margin="120,160,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=SegmentLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                    Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,185,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Num Iterations" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="NumIterations" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                      
+                    HorizontalAlignment="Left"
+                    Margin="120,185,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=NumIterations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+
+        <TextBlock Margin="0,210,190,0" 
+            Height="19" 
+            Width="100"
+             Text="GW1 Factor" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox Name="GW1Factor" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                   
+                    HorizontalAlignment="Left"
+                    Margin="120,210,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=DiffOfGaussRadius1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                 Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,235,190,0" 
+            Height="19" 
+            Width="100"
+             Text="GS1 Factor" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="GS1Factor" 
+                 DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,235,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=DiffOfGaussSigma1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+
+        <TextBlock Margin="0,260,190,0" 
+            Height="19" 
+            Width="100"
+             Text="GW2 Factor" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox Name="GW2Factor" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                   
+                    HorizontalAlignment="Left"
+                    Margin="120,260,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=DiffOfGaussRadius2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                 Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,285,190,0" 
+            Height="19" 
+            Width="100"
+             Text="GS2 Factor" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="GS2Factor" 
+                 DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,285,0,0" 
+                    Width="170"
+                  BorderBrush="Black"
+                  BorderThickness="1"
+                    Text="{Binding Path=DiffOfGaussSigma2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,310,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Image Index" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="ImageIndex" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,310,0,0" 
+                    Width="170"
+                  BorderBrush="Red"
+                  BorderThickness="1"
+                    Text="1" Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,335,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Fill Tolerance Low" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="FillToleranceLow" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,335,0,0" 
+                    Width="170"
+                  BorderBrush="Red"
+                  BorderThickness="1"
+                    Text="{Binding Path=FillToleranceLow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,360,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Fill Tolerance High" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="FillToleranceHigh" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,360,0,0" 
+                    Width="170"
+                  BorderBrush="Red"
+                  BorderThickness="1"
+                    Text="{Binding Path=FillToleranceHigh, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+
+        <TextBlock Margin="0,385,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Result Scale" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="ResultScale" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,385,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=ResultScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,410,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Result Width" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="ResultWidth" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,410,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=ResultWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBlock Margin="0,435,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Result Length" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <TextBox  x:Name="ResultLength" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,435,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=ResultLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+
+        <TextBox  x:Name="BorderTop" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,460,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=BorderTop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,460,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Border Top" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+        <TextBox  x:Name="BorderLeft" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,485,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=BorderLeft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,485,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Border Left" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+        <TextBox  x:Name="BorderRight" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,510,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=BorderRight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,510,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Border Right" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+
+        <TextBox  x:Name="BorderBottom" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    
+                    HorizontalAlignment="Left"
+                    Margin="120,535,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=BorderBottom, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,535,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Border Bottom" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+
+        <TextBox  x:Name="CameraPK" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    HorizontalAlignment="Left"
+                    Margin="120,561,0,0" 
+                    Width="170"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=CameraPK, Mode=OneWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,561,190,0" 
+            Height="19" 
+            Width="100"
+             Text="Camera PK" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+        <TextBox  x:Name="URL" 
+                  DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+                    HorizontalAlignment="Center"
+                    Margin="0,644,0,0" 
+                    Width="280"
+                  BorderBrush="Green"
+                  BorderThickness="1"
+                    Text="{Binding Path=URL, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,627,190,0" 
+            Height="19" 
+            Width="100"
+             Text="URL" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+
+
+
+        <Button x:Name="SaveToDatabase" 
+                Content="Save to Database" 
+                Click="SaveToDatabaseClick" 
+                Width="130"
+                Height="20" 
+                VerticalAlignment="Top" 
+                Margin="0,749,160,0" 
+                HorizontalAlignment="Right" 
+                />
+        <Button x:Name="AddCamera" 
+                Content="Add Cam" 
+                Click="AddCameraClick" 
+                Width="70"
+                Height="20" 
+                VerticalAlignment="Top" 
+                Margin="0,749,85,0" 
+                HorizontalAlignment="Right" 
+                />
+        <Button x:Name="DeleteCamera" 
+                Content="Del Cam" 
+                Click="DeleteCameraClick" 
+                Width="70"
+                Height="20" 
+                VerticalAlignment="Top" 
+                Margin="0,749,10,0" 
+                HorizontalAlignment="Right" 
+                />
+        <TextBox  x:Name="ArUCOPath" 
+            HorizontalAlignment="Left"
+            Margin="10,722,0,0" 
+            Width="242"
+            BorderBrush="Green"
+            BorderThickness="1"
+            Text="{Binding Source={x:Static properties:Settings.Default}, Path=ArucoPath, Mode=TwoWay}" 
+            Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,705,190,0" 
+            Height="19" 
+            Width="100"
+            Text="ArUCO Local Path" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <Button x:Name="SetArucoPath" 
+            Content="..." 
+            Click="SetArucoPath_Click" 
+            Width="35"
+            Height="20" 
+            VerticalAlignment="Top" 
+            Margin="0,722,10,0" 
+            HorizontalAlignment="Right" 
+                />
+
+        <TextBox  x:Name="CheckerPath" 
+            HorizontalAlignment="Left"
+            Margin="10,683,0,0" 
+            Width="242"
+            BorderBrush="Green"
+            BorderThickness="1"
+            Text="{Binding Source={x:Static properties:Settings.Default}, Path=CheckerPath, Mode=TwoWay}" 
+            Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,666,190,0" 
+            Height="19" 
+            Width="100"
+            Text="Checker Local Path" HorizontalAlignment="Right" VerticalAlignment="Top" />
+        <Button x:Name="SetCheckerPath" 
+            Content="..." 
+            Click="SetCheckerPath_Click" 
+            Width="35"
+            Height="20" 
+            VerticalAlignment="Top" 
+            Margin="0,683,10,0" 
+            HorizontalAlignment="Right" 
+                />
+        <TextBox  x:Name="CameraProcessingURL" 
+            DataContext="{Binding ElementName=CameraIPComboBox, Path=SelectedItem}"
+            HorizontalAlignment="Center"
+            Margin="0,608,0,0" 
+            Width="280"
+            BorderBrush="Green"
+            BorderThickness="1"
+            Text="{Binding CameraProcessingURL, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+            Height="19" VerticalAlignment="Top"
+                    />
+        <TextBlock Margin="0,591,190,0" 
+            Height="19" 
+            Width="100"
+            Text="Processing URL" HorizontalAlignment="Right" VerticalAlignment="Top" />
+
+
+    </Grid>
+</UserControl>

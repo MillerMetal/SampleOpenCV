@@ -1,0 +1,117 @@
+﻿<Window x:Class="SampleOpenCV.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SampleOpenCV"
+        xmlns:userControls="clr-namespace:SampleOpenCV.UserControls"
+        mc:Ignorable="d"
+        Loaded="OnLoad"
+        Title="MainWindow" Height="826" Width="1603" WindowState="Maximized">
+    <Grid Margin="0,-1,0,1">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition />
+            <ColumnDefinition Width="300">
+            </ColumnDefinition>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <Image Grid.Column="0" x:Name="gdiImage" Stretch="Fill" Visibility="Collapsed" Margin="5" />
+        <userControls:MFIMediaElement Grid.Column="0" x:Name="MediaView" Margin="5"  Visibility="Visible"/>
+
+        <Image Grid.Column="1" x:Name="gdiGreyImage" Margin="5"/>
+
+
+        <Button x:Name="Redo" 
+                Content="Redo" 
+                Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
+                Click="RedoClick" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,365,0" 
+                HorizontalAlignment="Right" 
+                Width="70" />
+        <Button x:Name="SaveEdgeDetects" 
+                Content="Save Detct" 
+                Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
+                Click="testButton3_Click" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,290,0" 
+                HorizontalAlignment="Right" 
+                Width="70" 
+                />
+        <Button x:Name="UndistortImage" 
+                Content="Undistort" 
+                Grid.Row="1" 
+                Grid.Column="0" 
+                Grid.ColumnSpan="3"
+                Click="UndistortImageClick" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,215,0" 
+                HorizontalAlignment="Right" 
+                Width="70"/>
+        <Button Grid.Column="0" 
+                Grid.Row="1" 
+                Grid.ColumnSpan="3"
+                x:Name="testButton" 
+                Content="Load Checkers" 
+                Click="LoadCheckerImages" 
+                HorizontalAlignment="Right"
+                Width="100" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,5,0"/>
+        <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" 
+                x:Name="testButton2" 
+                Content="Load ARuCo" 
+                Click="LoadArucoImages" 
+                HorizontalAlignment="Right" 
+                Width="100" Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,110,0"/>
+        <Button x:Name="SnapshotChecker" 
+                Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                Click="SnapshotChecker_Click" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,450,0" 
+                HorizontalAlignment="Right" 
+                Width="70" 
+                >
+            <TextBlock TextAlignment="Center">Snap<LineBreak/>Checkers</TextBlock>
+        </Button>
+        <Button x:Name="SnapshotAruco" 
+                Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                HorizontalAlignment="Right" 
+                Width="70" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,525,0" 
+                Click="SnapshotAruco_Click" 
+                >
+            <TextBlock TextAlignment="Center">Snap<LineBreak/>Aruco</TextBlock>
+        </Button>
+
+        <userControls:CameraDataUserControl 
+            x:Name="ctlCameraDataCtl"
+            Width="300"
+            Height="775"
+            Grid.Column="2"
+            VerticalAlignment="Top"
+        />
+        <TextBlock FontSize="10px" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,10,790,0" HorizontalAlignment="Right" Grid.Row="1" TextWrapping="Wrap" Text="Number of Aruco Images Snapped" VerticalAlignment="Top" Width="156"/>
+        <TextBlock FontSize="10px" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,32,790,0" HorizontalAlignment="Right" Grid.Row="1" TextWrapping="Wrap" Text="Number of Checker Images Snapped" VerticalAlignment="Top" Width="164"/>
+        <TextBox Name="NumArucoImagesSnapped" IsReadOnly="True" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Height="18" Margin="0,7,700,0" Grid.Row="1" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="52"/>
+        <TextBox Name="NumCheckerImagesSnapped" IsReadOnly="True" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Height="18" Margin="172,29,700,0" Grid.Row="1" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="53"/>
+
+    </Grid>
+</Window>

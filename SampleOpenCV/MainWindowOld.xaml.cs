@@ -1,0 +1,658 @@
+﻿using Emgu.CV;
+using Emgu.CV.Structure;
+using Emgu.CV.CvEnum;
+using Emgu.CV.Aruco;
+using Microsoft.Win32;
+using System;
+using System.Windows;
+using System.Windows.Media.Imaging;
+using System.Drawing;
+using System.Collections.Generic;
+using Emgu.CV.Util;
+using System.Drawing.Configuration;
+using PointConverter = System.Drawing.PointConverter;
+using Microsoft.VisualBasic;
+using System.Windows.Controls;
+using System.IO;
+using System.Drawing.Imaging;
+using System.Linq;
+using System.Text;
+using System.Xml.Serialization;
+using System.Xml;
+
+namespace SampleOpenCV
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        //[System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        Matrix<double> cameraMatrix = new Matrix<double>(3, 3);
+        Matrix<double> distortionMatrix = new Matrix<double>(4, 1);
+        Matrix<double> cameraMatrix2 = new Matrix<double>(3, 3);
+        Matrix<double> distortionMatrix2 = new Matrix<double>(4, 1);
+
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void OnExit(object sender, ExitEventArgs e)
+        {
+            //Properties.Settings.Default.Save();
+        }
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr hObject);
+
+        public static BitmapSource ToBitmapSource<TColor, TDepth>(Emgu.CV.Image<TColor, TDepth> image)
+            where TColor : struct, Emgu.CV.IColor
+            where TDepth : new()
+        {
+            using (System.Drawing.Bitmap source = image.AsBitmap())
+            {
+                IntPtr ptr = source.GetHbitmap(); //obtain the Hbitmap
+
+                BitmapSource bs = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                    ptr,
+                    IntPtr.Zero,
+                    Int32Rect.Empty,
+                    System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+
+                DeleteObject(ptr); //release the HBitmap
+                return bs;
+            }
+        }
+
+        public static BitmapSource ToBitmapSource(Emgu.CV.Mat image)
+        {
+            using (System.Drawing.Bitmap source = Emgu.CV.BitmapExtension.ToBitmap(image))
+            {
+                IntPtr ptr = source.GetHbitmap(); //obtain the Hbitmap
+
+                BitmapSource bs = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                    ptr,
+                    IntPtr.Zero,
+                    Int32Rect.Empty,
+                    System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+
+                DeleteObject(ptr); //release the HBitmap
+                return bs;
+            }
+        }
+
+
+
+        private void testCode1()
+        {
+            #region TestCode1
+
+            OpenFileDialog openPic = new OpenFileDialog();
+
+            if (openPic.ShowDialog() == true)
+            {
+                // Get the CV image from the file
+                Emgu.CV.Image<Bgr, Byte> cvimgColor = new Image<Bgr, Byte>(openPic.FileName);
+
+
+
+                // Convert the CV image to a GDI bitmap and store it in the
+                // image control
+                //gdiImage.Source = ToBitmapSource<Bgr, Byte>(cvimgColor);
+
+                // Make sure we do matrix operations
+                using UMat gray = new UMat();
+                using Mat img = new Mat();
+                cvimgColor.Mat.CopyTo(img);
+
+
+                using UMat cannyEdges = new UMat();
+                using Mat lineImage = new Mat(img.Size, DepthType.Cv8U, 3);
+                using Mat triangleRectangleImage = new Mat(img.Size, DepthType.Cv8U, 3);
+
+
+                // Convert the image to grayscale
+                CvInvoke.CvtColor(img, gray, ColorConversion.Bgr2Gray);
+                Image<Bgr, Byte> cvimgGraySrc = gray.ToImage<Bgr, Byte>();
+
+                // Remove noise using gaussian blur
+                System.Drawing.Size sz = new System.Drawing.Size(11, 11);
+                CvInvoke.GaussianBlur(gray, gray, sz, 0);
+
+                // Copy to the UMat to the gdiImage
+
+                gdiImage.Source = ToBitmapSource<Bgr, Byte>(cvimgGraySrc);
+
+                #region Canny and edge detection
+                double cannyThreshold = 180.0;
+                double cannyThresholdLinking = 120.0;
+                CvInvoke.Canny(gray, cannyEdges, cannyThreshold, cannyThresholdLinking);
+                LineSegment2D[] lines = CvInvoke.HoughLinesP(
+                    cannyEdges,
+                    1, //Distance resolution in pixel-related units
+                    Math.PI / 45.0, //Angle resolution measured in radians.
+                    20, //threshold
+                    30, //min Line width
+                    10); //gap between lines
+                #endregion
+
+                #region Find triangles and rectangles
+                List<Triangle2DF> triangleList = new List<Triangle2DF>();
+                List<RotatedRect> boxList = new List<RotatedRect>(); //a box is a rotated rectangle
+                using (VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint())
+                {
+                    CvInvoke.FindContours(cannyEdges, contours, null, RetrType.List,
+                        ChainApproxMethod.ChainApproxSimple);
+                    int count = contours.Size;
+                    for (int i = 0; i < count; i++)
+                    {
+                        using (VectorOfPoint contour = contours[i])
+                        using (VectorOfPoint approxContour = new VectorOfPoint())
+                        {
+                            CvInvoke.ApproxPolyDP(contour, approxContour, CvInvoke.ArcLength(contour, true) * 0.05,
+                                true);
+                            if (CvInvoke.ContourArea(approxContour, false) > 250
+                            ) //only consider contours with area greater than 250
+                            {
+                                if (approxContour.Size == 3) //The contour has 3 vertices, it is a triangle
+                                {
+                                    System.Drawing.Point[] pts = approxContour.ToArray();
+                                    triangleList.Add(new Triangle2DF(
+                                        pts[0],
+                                        pts[1],
+                                        pts[2]
+                                    ));
+                                }
+                                else if (approxContour.Size == 4) //The contour has 4 vertices.
+                                {
+                                    #region determine if all the angles in the contour are within [80, 100] degree
+                                    bool isRectangle = true;
+                                    System.Drawing.Point[] pts = approxContour.ToArray();
+                                    LineSegment2D[] edges = PointCollection.PolyLine(pts, true);
+
+                                    for (int j = 0; j < edges.Length; j++)
+                                    {
+                                        double angle = Math.Abs(
+                                            edges[(j + 1) % edges.Length].GetExteriorAngleDegree(edges[j]));
+                                        if (angle < 80 || angle > 100)
+                                        {
+                                            isRectangle = false;
+                                            break;
+                                        }
+                                    }
+
+                                    #endregion
+
+                                    if (isRectangle) boxList.Add(CvInvoke.MinAreaRect(approxContour));
+                                }
+                            }
+                        }
+                    }
+                }
+                #endregion
+
+
+                #region draw triangles and rectangles
+                foreach (RotatedRect box in boxList)
+                {
+                    CvInvoke.Polylines(triangleRectangleImage, Array.ConvertAll(box.GetVertices(), System.Drawing.Point.Round), true,
+                        new Bgr(Color.DarkOrange).MCvScalar, 2);
+                }
+
+                //Drawing a light gray frame around the image
+                CvInvoke.Rectangle(triangleRectangleImage,
+                    new Rectangle(System.Drawing.Point.Empty,
+                        new System.Drawing.Size(triangleRectangleImage.Width - 1, triangleRectangleImage.Height - 1)),
+                    new MCvScalar(120, 120, 120));
+                //Draw the labels
+                CvInvoke.PutText(triangleRectangleImage, "Triangles and Rectangles", new System.Drawing.Point(20, 20),
+                    FontFace.HersheyDuplex, 0.5, new MCvScalar(120, 120, 120));
+                #endregion
+
+                //Image<Gray, Byte> cvimgGray2 = gray.ToImage<Gray, Byte>();
+                Image<Bgr, Byte> cvimgGray2 = triangleRectangleImage.ToImage<Bgr, Byte>();
+
+
+
+                // Convert the CV image from color to gray
+                // Apply the Canny operator
+                //Emgu.CV.Image<Gray, byte> grayImageCV = colorImageCV.Convert<Gray, byte>();
+                //Emgu.CV.Image<Gray, byte> edgesCV = grayImageCV.Canny(50, 150);
+
+                // To do a Hough transform, we need to use the Hue Sat Val colorspace
+                // rather than RGB.  So, convert image to hsv
+                //Image<Hsv, Byte> cvimgHsv2 = colorImageCV.Convert<Hsv, Byte>();
+                //Image<Bgr, Byte> cvimgRGBResult = colorImageCV.Convert<Bgr, Byte>();
+
+                //Image<Gray, Byte> cvimgGray = cvimgColor.Convert<Gray, Byte>();
+                //Image<Gray, Byte> cvimgRGBResult = cvimgGray.Copy();
+
+                // Get the lines from the Hough function
+                //LineSegment2D[][] lines = cvimgHsv2.HoughLines  ( 50.0
+                //                                              , 200.0
+                //                                            , 1
+                //                                          , Math.PI / 180.0
+                //                                        , 50
+                //                                      , 50.0
+                //                                    , 10.10 );
+
+
+                //cvimgRGBResult.SetZero();
+                //for (int i = 0; i < lines[0].Length; i++)
+                //{
+                //  cvimgRGBResult.Draw(lines[0][i], new Bgr(255.0, 0.0, 0.0), 1);
+                //}
+
+                gdiGreyImage.Source = ToBitmapSource(cvimgGray2);
+
+            }
+            #endregion
+        }
+
+        private void DetectCorners()
+        {
+            #region DetectCorners
+            OpenFileDialog openPic = new OpenFileDialog();
+
+            // First, open the image captured that has the plates (or paper pieces)
+            // and the ArUco corner targets.
+            openPic.Multiselect = false;
+            openPic.Title = "Open Aruco Image";
+
+            if (cameraMatrix != null)
+            {
+                XmlReader rdr = XmlReader.Create(new StringReader(properties.SampleOpenCV.Default.CameraMatrix));
+                if (rdr != null)
+                {
+                    object o = (new XmlSerializer(typeof(Matrix<double>))).Deserialize(rdr);
+                    if (o != null)
+                        cameraMatrix = (Matrix<double>)o;
+                }
+            }
+            if (distortionMatrix != null)
+            {
+                XmlReader rdr = XmlReader.Create(new StringReader(properties.SampleOpenCV.Default.DistortionMatrix));
+                if (rdr != null)
+                {
+                    object o = (new XmlSerializer(typeof(Matrix<double>))).Deserialize(rdr);
+                    if (o != null)
+                        distortionMatrix = (Matrix<double>)o;
+                }
+            }
+
+            if (openPic.ShowDialog() == true)
+            {
+                List<Emgu.CV.Image<Bgr, Byte>> cvimgsColor = new List<Image<Bgr, byte>>();
+
+                // Open the target image
+                cvimgsColor.Add(new Image<Bgr, Byte>(openPic.FileName));
+
+                // Return Value allocation
+                VectorOfVectorOfPointF myMarkerCorners = new VectorOfVectorOfPointF();
+                VectorOfVectorOfPointF myRejects = new VectorOfVectorOfPointF();
+                VectorOfInt myMarkerIds = new VectorOfInt();
+
+                // Get the default parameters for the conversion
+                DetectorParameters myDetectorParams = new DetectorParameters();
+                myDetectorParams = DetectorParameters.GetDefault();
+
+                // Create the dictionary for receiving values
+                Dictionary myDict = new Dictionary(Dictionary.PredefinedDictionaryName.DictArucoOriginal);
+
+                // Some image result holders
+                Emgu.CV.Image<Bgr, Byte> cvimgColorBefore = new Image<Bgr, Byte>(openPic.FileName);
+                Emgu.CV.Image<Bgr, Byte> cvimgColor = new Image<Bgr, Byte>(openPic.FileName);
+                Emgu.CV.Image<Gray, byte> cvimgGrayBefore = cvimgColor.Convert<Gray, byte>();
+                Emgu.CV.Image<Gray, byte> cvimgGray = cvimgColor.Convert<Gray, byte>();
+
+                // Using the camera calibration data from the checkerboard patterns, and the 
+                // distortion array calculated from those images, undistort the images so it's
+                // a TRUE camera projection with no induced curves.
+                CvInvoke.Undistort(cvimgGrayBefore, cvimgGray, cameraMatrix, distortionMatrix);
+                CvInvoke.Undistort(cvimgColorBefore, cvimgColor, cameraMatrix, distortionMatrix);
+
+                // Store a gray result image
+                gdiGreyImage.Source = ToBitmapSource(cvimgGray);
+
+                Emgu.CV.Mat imgInputAruco = cvimgColor.Mat;
+
+                Emgu.CV.Aruco.ArucoInvoke.DetectMarkers(imgInputAruco, myDict, myMarkerCorners, myMarkerIds, myDetectorParams, myRejects);
+
+
+                // We're looking for the corners with the following IDs, in the following order:
+                // 
+                ArucoInvoke.DrawDetectedMarkers(imgInputAruco, myMarkerCorners, myMarkerIds, new MCvScalar(255, 0, 255));
+                //Emgu.CV.Aruco.
+
+                // Draw the bounding corners...d
+                Dictionary<int, int> map = new Dictionary<int, int>();
+                map.Add(430, 3);
+                map.Add(219, 0);
+                map.Add(338, 1);
+                map.Add(908, 2);
+
+                Dictionary<int, PointF> mappts = new Dictionary<int, PointF>();
+                float dScaleFactor = 32.0F;
+                float dLength = 78.9375F;
+                float dWidth = 31.4375F;
+                mappts.Add(430, new PointF(dLength * dScaleFactor, dWidth * dScaleFactor));
+                mappts.Add(219, new PointF(0.0F, dWidth * dScaleFactor));
+                mappts.Add(338, new PointF(0.0F, 0.0F));
+                mappts.Add(908, new PointF(dLength * dScaleFactor, 0.0F));
+
+                LineSegment2DF line;
+                line = new LineSegment2DF(myMarkerCorners[0][map[myMarkerIds[0]]], myMarkerCorners[1][map[myMarkerIds[1]]]);
+                cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+                line = new LineSegment2DF(myMarkerCorners[1][map[myMarkerIds[1]]], myMarkerCorners[2][map[myMarkerIds[2]]]);
+                cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+                line = new LineSegment2DF(myMarkerCorners[2][map[myMarkerIds[2]]], myMarkerCorners[3][map[myMarkerIds[3]]]);
+                cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+                line = new LineSegment2DF(myMarkerCorners[3][map[myMarkerIds[3]]], myMarkerCorners[0][map[myMarkerIds[0]]]);
+                cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+
+                PointF[] srcs = new PointF[4];
+                srcs[0] = myMarkerCorners[0][map[myMarkerIds[0]]];
+                srcs[1] = myMarkerCorners[1][map[myMarkerIds[1]]];
+                srcs[2] = myMarkerCorners[2][map[myMarkerIds[2]]];
+                srcs[3] = myMarkerCorners[3][map[myMarkerIds[3]]];
+
+                PointF[] dsts = new PointF[4];
+                dsts[0] = mappts[myMarkerIds[0]];
+                dsts[1] = mappts[myMarkerIds[1]];
+                dsts[2] = mappts[myMarkerIds[2]];
+                dsts[3] = mappts[myMarkerIds[3]];
+
+                Emgu.CV.Mat homog = CvInvoke.FindHomography(srcs, dsts);
+                Matrix<float> homogmat = new Matrix<float>(homog.Rows, homog.Cols);
+                homog.CopyTo(homogmat);
+
+                //Emgu.CV.Image<Gray, byte> cvimgBlur = cvimgGray.SmoothGaussian(5);
+                Emgu.CV.Image<Gray, Byte> cvimgDewarped = cvimgGray.WarpPerspective<float>(homogmat, (int)(dLength * dScaleFactor), (int)(dWidth * dScaleFactor), Inter.Cubic, Warp.Default, BorderType.Default, new Gray(0));
+
+                //Emgu.CV.Image<Gray, byte> cvAdapThresh = cvimgDewarped.ThresholdAdaptive(new Gray(255)
+                //                                                   , AdaptiveThresholdType.GaussianC
+                //                                                 , ThresholdType.Binary
+                //                                               , 11
+                //                                             , new Gray(10)
+                //                                              );
+
+                Emgu.CV.Image<Gray, byte> cvimgCanny = cvimgDewarped.Canny(55.0, 50.0);
+
+
+                // Finally, try to find the contours in the image...  We'll want rectangles
+                // or L shaped objects.
+                Emgu.CV.Util.VectorOfVectorOfPoint contours = new Emgu.CV.Util.VectorOfVectorOfPoint();
+                Mat hier = new Mat();
+
+                Emgu.CV.CvInvoke.FindContours(cvimgCanny, contours, hier, Emgu.CV.CvEnum.RetrType.External, Emgu.CV.CvEnum.ChainApproxMethod.ChainApproxNone);
+
+                int n;
+                Emgu.CV.Util.VectorOfVectorOfPoint rects = new Emgu.CV.Util.VectorOfVectorOfPoint(0);
+
+                if (contours != null)
+                {
+                    for (n = 0; n < contours.Size; n++)
+                    {
+                        if (contours[n] != null)
+                        {
+                            Emgu.CV.Util.VectorOfPoint cont = contours[n];
+
+                            if (cont != null && Emgu.CV.CvInvoke.ContourArea(cont) > 3000)
+                            {
+                                Emgu.CV.Util.VectorOfPoint approx = new Emgu.CV.Util.VectorOfPoint();
+
+                                double epsilon = 0.05 * Emgu.CV.CvInvoke.ArcLength(cont, true);
+                                Emgu.CV.CvInvoke.ApproxPolyDP(cont, approx, epsilon, true);
+                                if (approx.Size == 4)
+                                    rects.Push(approx);
+
+                            }
+                        }
+                    }
+                }
+
+                cvimgDewarped.Draw(rects, -1, new Gray(0));
+
+                gdiImage.Source = ToBitmapSource<Gray, Byte>(cvimgDewarped);
+                gdiGreyImage.Source = ToBitmapSource<Gray, Byte>(cvimgCanny);
+            }
+            #endregion
+        }
+
+        private List<MCvPoint3D32f> CreateObjectPoints(System.Drawing.Size sz, float w = 1.0f, float h = 1.0f)
+        {
+            float x, y;
+
+            var chessboard = new List<MCvPoint3D32f>();
+
+            for (y = 0; y < sz.Height; y++)
+            {
+                for (x = 0; x < sz.Width; x++)
+                {
+                    chessboard.Add(new MCvPoint3D32f(x * w, y * h, 0));
+                }
+            }
+
+            return chessboard;
+        }
+
+        private void LoadCalibrationImages()
+        {
+            int i;
+            List<Emgu.CV.Image<Bgr, Byte>> cvimgsColor = new List<Image<Bgr, byte>>();
+            System.Drawing.Size patternSize = new System.Drawing.Size(9, 7);
+            Mat[] rotationVectors;
+            Mat[] translationVectors;
+
+            MCvPoint3D32f[][] _cornersObjectList;
+            PointF[][] _cornersPointsList;
+            VectorOfPointF[] _cornersPointsVec;
+            bool bFound;
+            double error = 0.0;
+
+            OpenFileDialog openPic = new OpenFileDialog();
+
+            openPic.Multiselect = true;
+            openPic.Title = "Open Calibration Images - Select Multiple Frames";
+
+            if (openPic.ShowDialog() == true)
+            {
+
+
+                // Open all of the calibration images
+                foreach (String filename in openPic.FileNames)
+                {
+                    cvimgsColor.Add(new Image<Bgr, Byte>(filename));
+                }
+
+                #region Initialize Variable Arrays
+                _cornersPointsVec = new VectorOfPointF[cvimgsColor.Count];
+                _cornersObjectList = new MCvPoint3D32f[cvimgsColor.Count][];
+                _cornersPointsList = new PointF[cvimgsColor.Count][];
+                #endregion
+
+                for (i = 0; i < cvimgsColor.Count; i++)
+                {
+                    #region First, convert the bitmap to gray
+                    Emgu.CV.Image<Gray, byte> cvimgGray = cvimgsColor[i].Convert<Gray, byte>();
+                    #endregion
+
+                    #region Next, Find the chess board cdorners
+                    _cornersPointsVec[i] = new VectorOfPointF();
+                    bFound = CvInvoke.FindChessboardCorners(cvimgGray, patternSize, _cornersPointsVec[i]);
+                    #endregion
+
+                    #region Draw and display the corners on a color copy of the image
+                    if (bFound)
+                    {
+                        CvInvoke.CornerSubPix(cvimgGray, _cornersPointsVec[i], new System.Drawing.Size(11, 11), new System.Drawing.Size(-1, -1), new MCvTermCriteria(30, 0.1));
+
+                        Emgu.CV.Image<Bgr, Byte> cvimgColorCopy = cvimgsColor[i].Copy();
+
+                        _cornersObjectList[i] = CreateObjectPoints(patternSize, 1, 1).ToArray();
+                        _cornersPointsList[i] = _cornersPointsVec[i].ToArray();
+
+                        // IMPORTANT NOTE!!!  DrawChessboardCorners requires that the cornersPointsVec
+                        // be a PointF (float), not an int or a double.
+                        CvInvoke.DrawChessboardCorners(cvimgColorCopy, patternSize, _cornersPointsVec[i], bFound);
+                        gdiGreyImage.Source = ToBitmapSource<Bgr, Byte>(cvimgColorCopy);
+                    }
+                    else
+                    {
+                    }
+                    #endregion
+
+                    gdiImage.Source = ToBitmapSource<Bgr, Byte>(cvimgsColor[i]);
+
+                    //MessageBox.Show("Image " + i.ToString() + "  Press OK to continue.");
+                }
+
+
+                #region Calibrate the camera and store the intrinsics                    
+                error = CvInvoke.CalibrateCamera(_cornersObjectList
+                                         , _cornersPointsList
+                                         , cvimgsColor[0].Size
+                                         , cameraMatrix
+                                         , distortionMatrix
+                                         , CalibType.Default
+                                         , new MCvTermCriteria(250, 0.001)
+                                         , out rotationVectors
+                                         , out translationVectors);
+
+
+
+
+                #endregion
+
+
+                Rectangle rc = new Rectangle();
+                Mat rval;
+
+                rval = CvInvoke.GetOptimalNewCameraMatrix(cameraMatrix, distortionMatrix, cvimgsColor[0].Size, 0, cvimgsColor[0].Size, ref rc);
+                bool bShowMsg = true;
+
+                if (cameraMatrix != null)
+                {
+                    // Store the intrinsics in the user settings
+                    StringBuilder sb = new StringBuilder();
+                    (new XmlSerializer(typeof(Matrix<double>))).Serialize(new StringWriter(sb), cameraMatrix);
+                    properties.SampleOpenCV.Default.CameraMatrix = sb.ToString();
+                }
+
+                if (distortionMatrix != null)
+                {
+                    // Store the intrinsics in the user settings
+                    StringBuilder sb = new StringBuilder();
+                    (new XmlSerializer(typeof(Matrix<double>))).Serialize(new StringWriter(sb), distortionMatrix);
+                    properties.SampleOpenCV.Default.DistortionMatrix = sb.ToString();
+                }
+
+                properties.SampleOpenCV.Default.Save();
+
+                if (cameraMatrix2 != null)
+                {
+                    XmlReader rdr = XmlReader.Create(new StringReader(properties.SampleOpenCV.Default.CameraMatrix));
+                    if (rdr != null)
+                    {
+                        object o = (new XmlSerializer(typeof(Matrix<double>))).Deserialize(rdr);
+                        if (o != null)
+                            cameraMatrix2 = (Matrix<double>)o;
+                    }
+                }
+                if (distortionMatrix2 != null)
+                {
+                    XmlReader rdr = XmlReader.Create(new StringReader(properties.SampleOpenCV.Default.DistortionMatrix));
+                    if (rdr != null)
+                    {
+                        object o = (new XmlSerializer(typeof(Matrix<double>))).Deserialize(rdr);
+                        if (o != null)
+                            distortionMatrix2 = (Matrix<double>)o;
+                    }
+                }
+
+
+
+
+
+                for (i = 0; i < cvimgsColor.Count; i++)
+                {
+                    Emgu.CV.Image<Bgr, Byte> cvimgColorCopy = cvimgsColor[i].Copy();
+                    Emgu.CV.Image<Bgr, Byte> cvimgColorResult = cvimgsColor[i].Copy();
+
+                    CvInvoke.Undistort(cvimgColorCopy, cvimgColorResult, cameraMatrix, distortionMatrix);
+
+                    gdiImage.Source = ToBitmapSource<Bgr, Byte>(cvimgColorResult);
+
+                    CvInvoke.DrawChessboardCorners(cvimgColorCopy, patternSize, _cornersPointsVec[i], true);
+                    gdiGreyImage.Source = ToBitmapSource<Bgr, Byte>(cvimgColorCopy);
+                    if (bShowMsg)
+                    {
+                        MessageBoxResult res;
+
+                        if (bShowMsg)
+                        {
+                            res = MessageBox.Show("Displaying Undistorted Image "
+                                                    + i.ToString()
+                                                    + "  Press OK to continue, or Cancel (Esc) to stop showing this message."
+                                                , "Progress"
+                                                , MessageBoxButton.OKCancel
+                                                , MessageBoxImage.Warning
+                                                 );
+
+                            if (res == MessageBoxResult.Cancel)
+                                bShowMsg = false;
+                        }
+                    }
+                }
+            }
+        }
+
+
+
+        private void SaveCornerDetectImage()
+        {
+            #region SaveCorners
+            SaveFileDialog savePic = new SaveFileDialog();
+
+            savePic.Title = "Save Detected Corner Image";
+            savePic.Filter = "Png File|*.png";
+
+            if (savePic.ShowDialog() == true)
+            {
+                System.Windows.Media.ImageSource src = gdiImage.Source;
+
+                BitmapSource bmpSource = src as BitmapSource;
+
+                System.Windows.Media.Imaging.PngBitmapEncoder pngBitmapEncoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                System.IO.FileStream stream = new System.IO.FileStream(savePic.FileName, FileMode.Create);
+
+                pngBitmapEncoder.Interlace = PngInterlaceOption.On;
+                pngBitmapEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmpSource));
+                pngBitmapEncoder.Save(stream);
+
+                stream.Flush();
+                stream.Close();
+            }
+
+            #endregion
+        }
+
+
+        private void testButton_Click(object sender, RoutedEventArgs e)
+        {
+            LoadCalibrationImages();
+        }
+
+        private void testButton2_Click(object sender, RoutedEventArgs e)
+        {
+            DetectCorners();
+        }
+
+        private void testButton3_Click(object sender, RoutedEventArgs e)
+        {
+            SaveCornerDetectImage();
+        }
+
+    }
+}
