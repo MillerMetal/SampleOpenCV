@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SampleOpenCV": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}

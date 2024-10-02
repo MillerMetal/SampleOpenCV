@@ -28,26 +28,27 @@
         <Button x:Name="Redo" 
                 Content="Redo" 
                 Grid.Row="1"
-                Grid.Column="0"
+                Grid.Column="1"
                 Grid.ColumnSpan="3"
                 Click="RedoClick" 
                 Height="44" 
                 VerticalAlignment="Center" 
-                Margin="0,0,365,0" 
+                Margin="0,0,436,0" 
                 HorizontalAlignment="Right" 
-                Width="70" />
+                Width="52" />
         <Button x:Name="SaveEdgeDetects" 
-                Content="Save Detct" 
                 Grid.Row="1"
                 Grid.Column="0"
                 Grid.ColumnSpan="3"
                 Click="testButton3_Click" 
                 Height="44" 
                 VerticalAlignment="Center" 
-                Margin="0,0,290,0" 
+                Margin="0,0,380,0" 
                 HorizontalAlignment="Right" 
-                Width="70" 
-                />
+                Width="52">
+            <TextBlock TextAlignment="Center">Save<LineBreak/>Detect</TextBlock>
+        </Button>
+
         <Button x:Name="UndistortImage" 
                 Content="Undistort" 
                 Grid.Row="1" 
@@ -59,6 +60,18 @@
                 Margin="0,0,215,0" 
                 HorizontalAlignment="Right" 
                 Width="70"/>
+        <Button x:Name="UndistortImageFolders" 
+                Grid.Row="1" 
+                Grid.Column="0" 
+                Grid.ColumnSpan="3"
+                Click="UndistortImageFoldersClick" 
+                Height="44" 
+                VerticalAlignment="Center" 
+                Margin="0,0,290,0" 
+                HorizontalAlignment="Right" 
+                Width="70">
+            <TextBlock TextAlignment="Center">Undistort<LineBreak/>Folders</TextBlock>
+        </Button>
         <Button Grid.Column="0" 
                 Grid.Row="1" 
                 Grid.ColumnSpan="3"
@@ -79,23 +92,27 @@
                 VerticalAlignment="Center" 
                 Margin="0,0,110,0"/>
         <Button x:Name="SnapshotChecker" 
-                Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                Grid.Row="1" 
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
                 Click="SnapshotChecker_Click" 
                 Height="44" 
                 VerticalAlignment="Center" 
-                Margin="0,0,450,0" 
-                HorizontalAlignment="Right" 
-                Width="70" 
+                Margin="0,0,492,0" 
+                HorizontalAlignment="Right"
+                Width="52" 
                 >
             <TextBlock TextAlignment="Center">Snap<LineBreak/>Checkers</TextBlock>
         </Button>
         <Button x:Name="SnapshotAruco" 
-                Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                Grid.Row="1" 
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
                 HorizontalAlignment="Right" 
-                Width="70" 
+                Width="52" 
                 Height="44" 
                 VerticalAlignment="Center" 
-                Margin="0,0,525,0" 
+                Margin="0,0,548,0" 
                 Click="SnapshotAruco_Click" 
                 >
             <TextBlock TextAlignment="Center">Snap<LineBreak/>Aruco</TextBlock>
@@ -112,6 +129,19 @@
         <TextBlock FontSize="10px" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,32,790,0" HorizontalAlignment="Right" Grid.Row="1" TextWrapping="Wrap" Text="Number of Checker Images Snapped" VerticalAlignment="Top" Width="164"/>
         <TextBox Name="NumArucoImagesSnapped" IsReadOnly="True" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Height="18" Margin="0,7,700,0" Grid.Row="1" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="52"/>
         <TextBox Name="NumCheckerImagesSnapped" IsReadOnly="True" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Height="18" Margin="172,29,700,0" Grid.Row="1" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="53"/>
+        <Button x:Name="SnapshotMeasure" 
+            Grid.Row="1" 
+            Grid.Column="0"
+            Grid.ColumnSpan="3"
+            HorizontalAlignment="Right" 
+            Width="52" 
+            Height="44" 
+            VerticalAlignment="Center" 
+            Margin="0,0,604,0"
+            Click="SnapshotMeasure_Click" 
+                >
+            <TextBlock TextAlignment="Center"><Run Text="Snap"/><LineBreak/><Run Text="Measure"/></TextBlock>
+        </Button>
 
     </Grid>
 </Window>

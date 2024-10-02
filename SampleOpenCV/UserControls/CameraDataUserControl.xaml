@@ -200,7 +200,8 @@
                     Width="170"
                   BorderBrush="Red"
                   BorderThickness="1"
-                    Text="1" Height="19" VerticalAlignment="Top"
+                    Text="{Binding Path=ImageIndex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  Height="19" VerticalAlignment="Top"
                     />
 
         <TextBlock Margin="0,335,190,0" 

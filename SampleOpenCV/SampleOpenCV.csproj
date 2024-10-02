@@ -6,8 +6,33 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <Platforms>AnyCPU;x64</Platforms>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
     <AppDesignerFolder>Properties</AppDesignerFolder>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <Optimize>False</Optimize>
+    <WarningLevel>7</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebugType>portable</DebugType>
+    <Optimize>False</Optimize>
+    <WarningLevel>7</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>portable</DebugType>
+    <Optimize>True</Optimize>
+    <WarningLevel>7</WarningLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebugType>portable</DebugType>
+    <Optimize>True</Optimize>
+    <WarningLevel>7</WarningLevel>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="DetectEdges.csold1" />
     <None Remove="MainWindow.xaml.csold" />
     <None Remove="MainWindow2.xaml.csold" />
     <None Remove="MainWindow3.xaml.csold" />
@@ -27,11 +53,17 @@
   <ItemGroup>
     <PackageReference Include="Emgu.CV.runtime.windows.cuda" Version="4.6.0.5131" />
     <PackageReference Include="Emgu.CV.UI" Version="4.6.0.5131" />
+    <PackageReference Include="MathNet.Spatial" Version="0.6.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.2" />
     <PackageReference Include="WindowsAPICodePack" Version="7.0.4" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Update="Properties\Settings.Designer.cs">
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <AutoGen>True</AutoGen>
@@ -91,6 +123,13 @@
     <Reference Include="SharpTech.Sql.NET6">
       <HintPath>Lib\Debug\SharpTech.Sql.NET6.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

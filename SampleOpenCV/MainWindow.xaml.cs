@@ -50,6 +50,7 @@ using System.Security.Cryptography;
 using System.Xml.Linq;
 using System.Security.Policy;
 using SampleOpenCV.UserControls;
+using System.Windows.Input;
 
 namespace SampleOpenCV
 {
@@ -197,6 +198,12 @@ namespace SampleOpenCV
                     prefixtype = "Aruco";
                 }
                 else
+                if (nCaptureType == 2)
+                {
+                    prefix = Properties.Settings.Default.MeasurePath;
+                    prefixtype = "Snapshot";
+                }
+                else
                 {
                     // Store with a measure prefix in the name
                     prefix = Properties.Settings.Default.ArucoPath;
@@ -205,8 +212,15 @@ namespace SampleOpenCV
 
                 if (strSelectedCameraURL.Contains('@') == false)
                 {
-                    MessageBox.Show("The URL for the currently selected camera must contain a '@'.  Snapshot not taken");
-                    return;
+                    if (strSelectedCameraURL.ToLower().Contains("snapshot"))
+                    {
+
+                    }
+                    else
+                    {
+                        MessageBox.Show("The URL for the currently selected camera must contain a '@'.  Snapshot not taken");
+                        return;
+                    }
                 }
                 int nPrefixIpAddrIndex = strSelectedCameraURL.LastIndexOf('@');
                 prefixipaddr = strSelectedCameraURL.Substring(nPrefixIpAddrIndex + 1);
@@ -225,6 +239,9 @@ namespace SampleOpenCV
                         else
                         if (nCaptureType == 1)
                             ctlCameraDataCtl.SetArucoPath_Click(sender, e);
+                        else
+                        if (nCaptureType == 2)
+                            ctlCameraDataCtl.SetMeasurePath_Click(sender, e);
                         else
                             MessageBox.Show("Encountered an unexpected capture type request of " + nCaptureType.ToString());
                         return;
@@ -245,7 +262,7 @@ namespace SampleOpenCV
                     // the folder that was stored in the settings folder.
                     // We will use the ip address of the camera along with the
                     // current time, so that we are sure we don't overwrite.  We
-                    // will also store the type of snapshot if 
+                    // will also store the type ofg snapshot if 
                     if (nCaptureType == 0)
                     {
                         nNumArucosSnapped++;
@@ -414,6 +431,7 @@ namespace SampleOpenCV
                 DeleteObject(ptr); //release the HBitmap
                 return bs;
             }
+
         }
 
         /*************************************************/
@@ -444,7 +462,7 @@ namespace SampleOpenCV
         }
 
         // UndistortBigImage(cvimgGrayBefore, cameraMatrix, distortionMatrix);
-        public Image<TColor, TDepth> UndistortBigImage<TColor, TDepth>(Image<TColor, TDepth> cvimgBefore)
+        public Image<TColor, TDepth> UndistortBigImage<TColor, TDepth>(Image<TColor, TDepth> cvimgBefore, Rectangle? optROI = null )
             where TColor : struct, Emgu.CV.IColor
             where TDepth : new()
         {
@@ -518,7 +536,10 @@ namespace SampleOpenCV
 
             nTempY = 0;
 
-            cvimgUndistorted.ROI = new Rectangle(nLeft, nTop, nRight - nLeft, nBottom - nTop);
+            if (optROI != null)
+                cvimgUndistorted.ROI = (Rectangle)optROI;
+            else
+                cvimgUndistorted.ROI = new Rectangle(nLeft, nTop, nRight - nLeft, nBottom - nTop);
 
             return cvimgUndistorted;
         }
@@ -526,6 +547,8 @@ namespace SampleOpenCV
 
         private void DetectCorners()
         {
+            double dScaleFactor = 32.0;
+
             #region DetectCorners
             OpenFileDialog openPic = new OpenFileDialog();
 
@@ -538,6 +561,7 @@ namespace SampleOpenCV
             {
                 if (Properties.Settings.Default.CameraMatrix.Length > 0)
                 {
+                    /*
                     XmlReader rdr = XmlReader.Create(new StringReader(Properties.Settings.Default.CameraMatrix));
                     if (rdr != null)
                     {
@@ -545,12 +569,20 @@ namespace SampleOpenCV
                         if (o != null)
                             cameraMatrix = (Matrix<double>)o;
                     }
+                    */
+
+                    Emgu.CV.Mat tmat = new Mat();
+                    FileStorage fsr = new FileStorage(Properties.Settings.Default.CameraMatrix, FileStorage.Mode.Read | FileStorage.Mode.Memory);
+                    FileNode fn = fsr.GetNode("Camera");
+                    fn.ReadMat(tmat);
+                    tmat.ConvertTo(cameraMatrix, DepthType.Cv64F);
                 }
             }
             if (distortionMatrix != null)
             {
                 if (Properties.Settings.Default.DistortionMatrix.Length > 0)
                 {
+                    /*
                     XmlReader rdr = XmlReader.Create(new StringReader(Properties.Settings.Default.DistortionMatrix));
                     if (rdr != null)
                     {
@@ -558,6 +590,13 @@ namespace SampleOpenCV
                         if (o != null)
                             distortionMatrix = (Matrix<double>)o;
                     }
+                    */
+
+                    Emgu.CV.Mat tmat = new Mat();
+                    FileStorage fsr = new FileStorage(Properties.Settings.Default.DistortionMatrix, FileStorage.Mode.Read | FileStorage.Mode.Memory);
+                    FileNode fn = fsr.GetNode("Distortion");
+                    fn.ReadMat(tmat);
+                    tmat.ConvertTo(distortionMatrix, DepthType.Cv64F);
                 }
             }
 
@@ -587,6 +626,8 @@ namespace SampleOpenCV
                 // Some image result holders
                 Emgu.CV.Image<Bgr, Byte> cvimgColorBefore = new Image<Bgr, Byte>(openPic.FileName);
                 Emgu.CV.Image<Bgr, Byte> cvimgColor = new Image<Bgr, Byte>(openPic.FileName);
+
+
                 Emgu.CV.Image<Gray, byte> cvimgGrayBefore = cvimgColor.Convert<Gray, byte>();
                 Emgu.CV.Image<Gray, byte> cvimgGray = cvimgColor.Convert<Gray, byte>();
 
@@ -600,11 +641,14 @@ namespace SampleOpenCV
                 // Store a gray result image
                 /*************************************************/
                 gdiImage.Source = ToBitmapSource(cvimgGray);
+                //gdiImage.InvalidateVisual();
                 gdiGreyImage.Source = ToBitmapSource(cvimgColor);
+                //gdiGreyImage.UpdateLayout();
 
                 cvimgGrayBefore = cvimgColor.Convert<Gray, byte>();
 
                 Emgu.CV.Mat imgInputAruco = cvimgGrayBefore.Mat;
+                Emgu.CV.Mat imgInputAruco2 = cvimgGrayBefore.Mat;
 
                 Emgu.CV.Aruco.ArucoInvoke.DetectMarkers(imgInputAruco, myDict, myMarkerCorners, myMarkerIds, myDetectorParams, myRejects);
 
@@ -613,44 +657,67 @@ namespace SampleOpenCV
                     // We're looking for the corners with the following IDs, in the following order:
                     ArucoInvoke.DrawDetectedMarkers(imgInputAruco, myMarkerCorners, myMarkerIds, new MCvScalar(255, 0, 255));
                     //Emgu.CV.Aruco.
+                    imgInputAruco.Save(@"c:\users\g.norkus\desktop\camera\temp.png");
 
-                    // Draw the bounding corners...d
+                    //ArucoInvoke.DrawDetectedMarkers(imgInputAruco2, myRejects, myMarkerIds, new MCvScalar(0, 255, 0));
+                    //imgInputAruco2.Save(@"c:\users\g.norkus\desktop\camera\temp2.png");
+
+                    // Draw the bounding corners...
                     Dictionary<int, int> map = new Dictionary<int, int>();
-                    map.Add(430, 0);
+                    map.Add(430, 3); // these are the corner indeces 0=tr 1=br 2=bl 3=tl
                     map.Add(219, 0);
                     map.Add(338, 1);
                     map.Add(908, 2);
 
                     Dictionary<int, PointF> mappts = new Dictionary<int, PointF>();
-                    float dScaleFactor = 32.0F;
 
                     // The dimensions must not include the white border, which is 1/2"
+                    CameraData? cd = this.ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData;
 
-                    float dLength = 133.25F;      // 134.25" - 1"
-                    float dLength2 = 130F;        // 131" - 1"
-                    float dWidth = 83.9375F;      //  84-15/16" - 1"
+                    if (cd != null)
+                    {
+                        Properties.Settings.Default.ROILeft = cd.ROILeft = cvimgGray.ROI.Left;
+                        Properties.Settings.Default.ROITop = cd.ROITop = cvimgGray.ROI.Top;
+                        Properties.Settings.Default.ROIRight = cd.ROIRight = cvimgGray.ROI.Right;
+                        Properties.Settings.Default.ROIBottom = cd.ROIBottom = cvimgGray.ROI.Bottom;
+                    }
+                    else
+                    {
+                        MessageBox.Show("The calibration could not be applied because a camera has not been selected");
+                        return;
+                    }
+
+                    //                    float dLength = 123.5F;      // 134.25" - 1"
+                    //                  float dLength2 = 123.5F;        // 131" - 1"
+                    //                float dWidth = 64.5F;      //  84-15/16" - 1"
+
+                    float dLength = (float)cd.ResultLength;      // 134.25" - 1"
+                    float dLength2 = (float)cd.ResultLength;        // 131" - 1"
+                    float dWidth = (float)cd.ResultWidth;      //  84-15/16" - 1"
+
+                    //mappts.Add(430, new PointF(0.0F, 0.0F));
+                    //mappts.Add(219, new PointF(dLength * dScaleFactor, 0.0F));
+                    //mappts.Add(338, new PointF(dLength2 * dScaleFactor, dWidth * dScaleFactor));
+                    //mappts.Add(908, new PointF(0.0F, dWidth * dScaleFactor));
+
+                    mappts.Add(430, new PointF((float)(cd.BorderLeft*dScaleFactor), (float)(cd.BorderTop*dScaleFactor)));
+                    mappts.Add(219, new PointF((float)( (dLength+cd.BorderLeft) * dScaleFactor), (float)(cd.BorderTop * dScaleFactor)));
+                    mappts.Add(338, new PointF((float)( (dLength2+cd.BorderLeft) * dScaleFactor), (float)((dWidth+cd.BorderTop) * dScaleFactor)));
+                    mappts.Add(908, new PointF((float)(cd.BorderLeft * dScaleFactor), (float)((dWidth + cd.BorderTop) * dScaleFactor)));
 
 
-                    /*
-                    float dLength = 134.25F;     
-                    float dLength2 = 131F;       
-                    float dWidth = 84.9375F;     
-                    */
-
-                    mappts.Add(430, new PointF(dLength2 * dScaleFactor, dWidth * dScaleFactor));
-                    mappts.Add(219, new PointF(0.0F, dWidth * dScaleFactor));
-                    mappts.Add(338, new PointF(0.0F, 0.0F));
-                    mappts.Add(908, new PointF(dLength * dScaleFactor, 0.0F));
 
                     LineSegment2DF line;
-                    line = new LineSegment2DF(myMarkerCorners[0][map[myMarkerIds[0]]], myMarkerCorners[1][map[myMarkerIds[1]]]);
-                    cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
-                    line = new LineSegment2DF(myMarkerCorners[1][map[myMarkerIds[1]]], myMarkerCorners[2][map[myMarkerIds[2]]]);
-                    cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
-                    line = new LineSegment2DF(myMarkerCorners[2][map[myMarkerIds[2]]], myMarkerCorners[3][map[myMarkerIds[3]]]);
-                    cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+                    line = new LineSegment2DF(myMarkerCorners[2][map[myMarkerIds[2]]], myMarkerCorners[1][map[myMarkerIds[1]]]);
+                    cvimgColor.Draw(line, new Bgr(0, 0.0, 255.0), 1);
                     line = new LineSegment2DF(myMarkerCorners[3][map[myMarkerIds[3]]], myMarkerCorners[0][map[myMarkerIds[0]]]);
-                    cvimgColor.Draw(line, new Bgr(255.0, 0.0, 128.0), 1);
+                    cvimgColor.Draw(line, new Bgr(0, 255.0, 0.0), 1);
+                    line = new LineSegment2DF(myMarkerCorners[1][map[myMarkerIds[1]]], myMarkerCorners[3][map[myMarkerIds[3]]]);
+                    cvimgColor.Draw(line, new Bgr(255.0, 0.0, 0.0), 1);
+                    line = new LineSegment2DF(myMarkerCorners[2][map[myMarkerIds[2]]], myMarkerCorners[0][map[myMarkerIds[0]]]);
+                    cvimgColor.Draw(line, new Bgr(0, 255.0, 255.0), 1);
+
+                    cvimgColor.Save(@"c:\users\g.norkus\desktop\camera\temp3.png");
 
                     PointF[] srcs = new PointF[4];
                     srcs[0] = myMarkerCorners[0][map[myMarkerIds[0]]];
@@ -669,28 +736,35 @@ namespace SampleOpenCV
                     homog.CopyTo(homographyMatrix);
                     invHomographyMatrix = new Matrix<double>(3, 3);
                     CvInvoke.Invert(homographyMatrix, invHomographyMatrix, DecompMethod.LU);
+                    //CameraData? cd = this.ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData;
 
                     if (homographyMatrix != null)
                     {
                         // Store the intrinsics in the user settings
-                        StringBuilder sb = new StringBuilder();
-                        (new XmlSerializer(typeof(Matrix<double>))).Serialize(new StringWriter(sb), homographyMatrix);
-                        Properties.Settings.Default.HomographyMatrix = sb.ToString();
+                        FileStorage fs = new FileStorage(".xml", FileStorage.Mode.Write | FileStorage.Mode.Memory);
+                        fs.Write(homographyMatrix.Mat, "Homography");
+                        Properties.Settings.Default.HomographyMatrix = fs.ReleaseAndGetString();
+
+                        //Properties.Settings.Default.HomographyMatrix = sb.ToString();
+                        cd.HomographyMatrix = Properties.Settings.Default.HomographyMatrix;
+                        cd.CameraMatrix = Properties.Settings.Default.CameraMatrix;
+                        cd.DistortionMatrix = Properties.Settings.Default.DistortionMatrix;
                     }
 
                     Properties.Settings.Default.ResultScale = dScaleFactor;
                     Properties.Settings.Default.ResultLength = dLength;
                     Properties.Settings.Default.ResultWidth = dWidth;
-                    Properties.Settings.Default.BorderBottom = 9.6875;
-                    Properties.Settings.Default.BorderTop = 10.75;
-                    Properties.Settings.Default.BorderLeft = 6.75;
-                    Properties.Settings.Default.BorderRight = 2.5;
                     Properties.Settings.Default.Save();
 
-                    Emgu.CV.Image<Gray, Byte> cvimgDewarped = cvimgGray.WarpPerspective<double>(homographyMatrix, (int)(dLength * dScaleFactor), (int)(dWidth * dScaleFactor), Inter.Cubic, Warp.Default, BorderType.Default, new Gray(0));
+                    Emgu.CV.Image<Gray, Byte> cvimgDewarped = 
+                        cvimgGray.WarpPerspective<double>( homographyMatrix
+                                                         , (int)((dLength+cd.BorderLeft+cd.BorderRight) * dScaleFactor)
+                                                         , (int)((dWidth+cd.BorderTop+cd.BorderBottom) * dScaleFactor)
+                                                         , Inter.Cubic, Warp.Default, BorderType.Default, new Gray(0));
 
                     /*************************************************/
                     gdiGreyImage.Source = ToBitmapSource(cvimgDewarped);
+                    cvimgDewarped.Save(@"c:\users\g.norkus\desktop\camera\temp4.png");
                 }
                 else
                 if (myMarkerCorners.Size > 4)
@@ -700,6 +774,13 @@ namespace SampleOpenCV
 
                     /*************************************************/
                     gdiGreyImage.Source = ToBitmapSource(imgInputAruco);
+                }
+                else
+                {
+                    myMarkerIds = new VectorOfInt(myRejects.Size);
+                    //Emgu.CV.Aruco.ArucoInvoke.DetectMarkers(imgInputAruco, myDict, myMarkerCorners, myMarkerIds, myDetectorParams, myRejects);
+                    ArucoInvoke.DrawDetectedMarkers(imgInputAruco, myRejects, myMarkerIds, new MCvScalar(255, 0, 255));
+                    imgInputAruco.Save(@"c:\users\g.norkus\desktop\camera\tempfail.png");
                 }
                 #endregion
             }
@@ -722,7 +803,7 @@ namespace SampleOpenCV
             return chessboard;
         }
 
-
+        /*
         private Int64 SumData(in Mat img)
         {
             Int64 rval = 0;
@@ -749,7 +830,7 @@ namespace SampleOpenCV
             }
 
             return rval;
-        }
+        }*/
 
         private void LoadCalibrationImages()
         {
@@ -908,24 +989,29 @@ namespace SampleOpenCV
                 if (cameraMatrix != null)
                 {
                     // Store the intrinsics in the user settings
+                    /*
                     StringBuilder sb = new StringBuilder();
                     (new XmlSerializer(typeof(Matrix<double>))).Serialize(new StringWriter(sb), cameraMatrix);
                     Properties.Settings.Default.CameraMatrix = sb.ToString();
+                    */
+
+                    FileStorage fs = new FileStorage(".xml", FileStorage.Mode.Write | FileStorage.Mode.Memory);
+                    fs.Write(cameraMatrix.Mat, "Camera");
+                    Properties.Settings.Default.CameraMatrix = fs.ReleaseAndGetString();
                 }
 
                 if (distortionMatrix != null)
                 {
                     // Store the intrinsics in the user settings
+                    /*
                     StringBuilder sb = new StringBuilder();
                     (new XmlSerializer(typeof(Matrix<double>))).Serialize(new StringWriter(sb), distortionMatrix);
                     Properties.Settings.Default.DistortionMatrix = sb.ToString();
+                    */
+                    FileStorage fs = new FileStorage(".xml", FileStorage.Mode.Write | FileStorage.Mode.Memory);
+                    fs.Write(distortionMatrix.Mat, "Distortion");
+                    Properties.Settings.Default.DistortionMatrix = fs.ReleaseAndGetString();
                 }
-
-                Debug.WriteLine("Camera Matrix");
-                Debug.WriteLine(Properties.Settings.Default.CameraMatrix);
-
-                Debug.WriteLine("Distortion Matrix");
-                Debug.WriteLine(Properties.Settings.Default.DistortionMatrix);
 
                 Properties.Settings.Default.Save();
 
@@ -943,6 +1029,7 @@ namespace SampleOpenCV
                     Emgu.CV.Image<Bgr, Byte> cvimgColorResult = cvimgsColor[i].Copy();
 
                     CvInvoke.Undistort(cvimgColorCopy, cvimgColorResult, cameraMatrix, distortionMatrix);
+                    cvimgColorResult.Save(@"c:\users\g.norkus\desktop\camera\templist" + i.ToString() + ".png");
 
                     /*************************************************/
                     gdiImage.Source = ToBitmapSource<Bgr, Byte>(cvimgColorResult);
@@ -972,6 +1059,8 @@ namespace SampleOpenCV
                     }
                 }
             }
+
+            Title = "MainWindow - Finished Loading Checker Calibration Images";
         }
 
 
@@ -983,6 +1072,8 @@ namespace SampleOpenCV
 
             savePic.Title = "Save Detected Corner Image";
             savePic.Filter = "Png File|*.png";
+            float dScaleFactor = 32.0F;
+
 
             if (savePic.ShowDialog() == true)
             {
@@ -1075,6 +1166,7 @@ namespace SampleOpenCV
 
             if (homographyMatrix != null)
             {
+                /*
                 XmlReader rdr = XmlReader.Create(new StringReader(Properties.Settings.Default.HomographyMatrix));
                 if (rdr != null)
                 {
@@ -1086,7 +1178,21 @@ namespace SampleOpenCV
                         invHomographyMatrix = new Matrix<double>(3, 3);
                         CvInvoke.Invert(homographyMatrix, invHomographyMatrix, DecompMethod.LU);
                     }
-                }
+                }*/
+
+                Emgu.CV.Mat tmat = new Mat();
+                FileStorage fsr = new FileStorage(Properties.Settings.Default.HomographyMatrix, FileStorage.Mode.Read | FileStorage.Mode.Memory);
+                FileNode fn = fsr.GetNode("Homography");
+                fn.ReadMat(tmat);
+                tmat.ConvertTo(homographyMatrix, DepthType.Cv64F);
+                invHomographyMatrix = new Matrix<double>(3, 3);
+                CvInvoke.Invert(homographyMatrix, invHomographyMatrix, DecompMethod.LU);
+
+                /*
+                FileStorage fs = new FileStorage(".xml", FileStorage.Mode.WriteBase64 | FileStorage.Mode.Memory);
+                fs.Write(homographyMatrix.Mat, "Homography");
+                Properties.Settings.Default.HomographyMatrix = fs.ReleaseAndGetString();
+                */
             }
             else
             {
@@ -1095,13 +1201,26 @@ namespace SampleOpenCV
 
             if (cameraMatrix != null)
             {
+                /*
                 XmlReader rdr = XmlReader.Create(new StringReader(Properties.Settings.Default.CameraMatrix));
                 if (rdr != null)
                 {
                     object o = (new XmlSerializer(typeof(Matrix<double>))).Deserialize(rdr);
                     if (o != null)
                         cameraMatrix = (Matrix<double>)o;
-                }
+                }*/
+
+                Emgu.CV.Mat tmat = new Mat();
+                FileStorage fsr = new FileStorage(Properties.Settings.Default.CameraMatrix, FileStorage.Mode.Read | FileStorage.Mode.Memory);
+                FileNode fn = fsr.GetNode("Camera");
+                fn.ReadMat(tmat);
+                tmat.ConvertTo(cameraMatrix, DepthType.Cv64F);
+
+                /*
+                FileStorage fs = new FileStorage(".xml", FileStorage.Mode.WriteBase64 | FileStorage.Mode.Memory);
+                fs.Write(cameraMatrix.Mat, "Camera");
+                Properties.Settings.Default.CameraMatrix = fs.ReleaseAndGetString();
+                */
             }
             else
             {
@@ -1110,6 +1229,7 @@ namespace SampleOpenCV
 
             if (distortionMatrix != null)
             {
+                /*
                 XmlReader rdr = XmlReader.Create(new StringReader(Properties.Settings.Default.DistortionMatrix));
                 if (rdr != null)
                 {
@@ -1117,12 +1237,26 @@ namespace SampleOpenCV
                     if (o != null)
                         distortionMatrix = (Matrix<double>)o;
                 }
+                */
+
+                
+                Emgu.CV.Mat tmat = new Mat();
+                FileStorage fsr = new FileStorage(Properties.Settings.Default.DistortionMatrix, FileStorage.Mode.Read | FileStorage.Mode.Memory);
+                FileNode fn = fsr.GetNode("Distortion");
+                fn.ReadMat(tmat);
+                tmat.ConvertTo(distortionMatrix, DepthType.Cv64F);
+                
+
+                /*
+                FileStorage fs = new FileStorage(".xml", FileStorage.Mode.WriteBase64 | FileStorage.Mode.Memory);
+                fs.Write(distortionMatrix.Mat, "Distortion");
+                Properties.Settings.Default.DistortionMatrix= fs.ReleaseAndGetString();
+                */
             }
             else
             {
                 //tstr = MatrixToString<double>(distortionMatrix, "Distortion Matrix");
             }
-
         }
 
         private Image<Bgr,Byte> KMeansAttempt(Image<Bgr, Byte> byteSrc, int clusterCount, int attempts)
@@ -1169,7 +1303,7 @@ namespace SampleOpenCV
         {
             // The default borders are in the order of TopLeft, TopRight, BottomRight, BottomLeft
             // This is so a single polyline command can be used to draw the border
-
+            CameraData? cd = this.ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData;
             float dBorderTop = (float)Properties.Settings.Default.BorderTop;
             float dBorderBottom = (float)Properties.Settings.Default.BorderBottom;
             float dBorderRight = (float)Properties.Settings.Default.BorderRight;
@@ -1178,11 +1312,31 @@ namespace SampleOpenCV
             float dLength = (float)Properties.Settings.Default.ResultLength;
             float dWidth = (float)Properties.Settings.Default.ResultWidth;
 
+            if (cd != null)
+            {
+                dBorderTop = (float)cd.BorderTop;
+                dBorderBottom = (float)cd.BorderBottom;
+                dBorderRight = (float)cd.BorderRight;
+                dBorderLeft = (float)cd.BorderLeft;
+                dScaleFactor = (float)cd.ResultScale;
+                dLength = (float)cd.ResultLength;
+                dWidth = (float)cd.ResultWidth;
+            }
+
+
             //TopLeft
-            PointF[] defaultBorders = new PointF[] { new PointF { X = dBorderLeft * dScaleFactor, Y = dBorderTop * dScaleFactor }
-                                                   , new PointF { X = (dLength-dBorderRight) * dScaleFactor, Y = dBorderTop * dScaleFactor }
-                                                   , new PointF { X = (dLength-dBorderRight) * dScaleFactor, Y = (dWidth-dBorderBottom) * dScaleFactor }
-                                                   , new PointF { X = dBorderLeft * dScaleFactor, Y = (dWidth-dBorderBottom) * dScaleFactor } };
+//            PointF[] defaultBorders = new PointF[] { new PointF { X = dBorderLeft * dScaleFactor, Y = dBorderTop * dScaleFactor }
+  //                                                 , new PointF { X = (dLength-dBorderRight) * dScaleFactor, Y = dBorderTop * dScaleFactor }
+    //                                               , new PointF { X = (dLength-dBorderRight) * dScaleFactor, Y = (dWidth-dBorderBottom) * dScaleFactor }
+      //                                             , new PointF { X = dBorderLeft * dScaleFactor, Y = (dWidth-dBorderBottom) * dScaleFactor } };
+            PointF[] defaultBorders = new PointF[] { new PointF { X = 0.0F
+                                                                , Y = 0.0F }
+                                                   , new PointF { X = (dLength+dBorderLeft+dBorderRight) * dScaleFactor
+                                                                , Y = 0.0F}
+                                                   , new PointF { X = (dLength+dBorderLeft+dBorderRight) * dScaleFactor
+                                                                , Y = (dWidth+dBorderTop+dBorderBottom) * dScaleFactor }
+                                                   , new PointF { X = 0.0F
+                                                                , Y = (dWidth+dBorderTop+dBorderBottom) * dScaleFactor } };
 
             return defaultBorders;
         }
@@ -1319,13 +1473,40 @@ namespace SampleOpenCV
         }
 
 
-
-        private void EraseDrawingBorders<TColor,TDepth>(ref Emgu.CV.Image<TColor,TDepth> img)
+        private void EraseDrawingBorders<TColor,TDepth>(ref Emgu.CV.Image<TColor,TDepth> img
+                                                        , float divby=0
+                                                        , float fAddLeft=0.0f
+                                                        , float fAddTop=0.0f
+                                                        , float fSubRight=0.0f          
+                                                        , float fSubBottom=0.0f
+                                                        , double dEraseColor=0.0
+                                                        )
+            
             where TColor : struct, Emgu.CV.IColor
             where TDepth : new()
+            // EraseDrawingBorders - the last 4 parameters are specified in the desired
+            // resolution of the image (i.e. 32nds of inch, etc).
+
         {
             PointF[] dstBorders = GetDefaultBorders();
+            dstBorders[0].X += fAddLeft;
+            dstBorders[0].Y += fAddTop;
+            dstBorders[1].X -= fSubRight;
+            dstBorders[1].Y += fAddTop;
+            dstBorders[2].X -= fSubRight;
+            dstBorders[2].Y -= fSubBottom;
+            dstBorders[3].X += fAddLeft;
+            dstBorders[3].Y -= fSubBottom;
+
             PointF[] srcBorders = CvInvoke.PerspectiveTransform(dstBorders, invHomographyMatrix);
+            if (divby > 0)
+            {
+                for (int i = 0; i < srcBorders.Length; i++)
+                {
+                    srcBorders[i].X /= divby;
+                    srcBorders[i].Y /= divby;
+                }
+            }
 
             // Use the points just calculated to make polygons...
             System.Drawing.Point[][] pts = new System.Drawing.Point[][]
@@ -1363,16 +1544,16 @@ namespace SampleOpenCV
             Object pixelBlackColor;
             if (typeof(TColor) == typeof(Bgr))
             {
-                pixelBlackColor = new Bgr(0, 0, 0);
+                pixelBlackColor = new Bgr(dEraseColor, dEraseColor, dEraseColor);
             }
             else
             if (typeof(TColor) == typeof(Bgra))
             {
-                pixelBlackColor = new Bgra(0, 0, 0, 0);
+                pixelBlackColor = new Bgra(dEraseColor, dEraseColor, dEraseColor, dEraseColor);
             }
             else
             {
-                pixelBlackColor = new Gray(0);
+                pixelBlackColor = new Gray(dEraseColor);
             }
 
             img.FillConvexPoly(pts[0], (TColor)pixelBlackColor);
@@ -1534,474 +1715,9 @@ namespace SampleOpenCV
         }
 
         string szLastFileName = "";
+        string szLastFileNameFlash = "";
 
-        private void DetectEdges(bool bDoFileOpen)
-        {
-            double dLength = Properties.Settings.Default.ResultLength;
-            double dWidth = Properties.Settings.Default.ResultWidth;
-            double dScaleFactor = Properties.Settings.Default.ResultScale;
-            float dScaleFactorF = (float)dScaleFactor;
-            string szOrgImage ;
-            float dMedianWidthF;
-            float dMedianHeightF;
-
-            Rectangle rc2;
-
-            if (dLength * dWidth * dScaleFactor <= 0)
-            {
-                MessageBox.Show("Please press the Load ARuCo Images button and select a calibration image before attempting this action.");
-                return;
-            }
-
-            CheckMatricesLoaded();
-
-            if (bDoFileOpen)
-            {
-                OpenFileDialog openPic = new OpenFileDialog();
-                openPic.Multiselect = false;
-                openPic.Title = "Open Background Image";
-                if (openPic.ShowDialog() == false)
-                {
-                    return;
-                }
-
-                szOrgImage = openPic.FileName;
-                szLastFileName = szOrgImage;
-
-                Title = "MainWindow - Undistort File - " + System.IO.Path.GetFileName(szLastFileName); ;
-
-            }
-            else
-            {
-                szOrgImage = szLastFileName;
-                if (szOrgImage.Length == 0)
-                {
-                    MessageBox.Show("Please select a file using UndistortImage before trying to Redo");
-                    return;
-                }
-                Title = "MainWindow - Undistort Recalculating - " + System.IO.Path.GetFileName(szLastFileName); ;
-            }
-
-            Emgu.CV.Image<Bgr, Byte> cvimgColor = new Image<Bgr, Byte>(szOrgImage);
-            Emgu.CV.Image<Bgra, Byte> cvimgColorBgra = new Image<Bgra, Byte>(szOrgImage);
-            Emgu.CV.Image<Bgra, Byte> cvimgOutput = new Image<Bgra, Byte>(cvimgColorBgra.Width, cvimgColorBgra.Height);
-
-            CudaImage<Bgra, byte> cudaImage = new CudaImage<Bgra, byte>(cvimgColorBgra);
-            CudaImage<Bgra, byte> cudaImageOut = new CudaImage<Bgra, byte>(cvimgColorBgra);
-
-            long nSum = SumData(cvimgColorBgra.Mat);
-
-            int nNumIterations = int.Parse(ctlCameraDataCtl.NumIterations.Text);
-            int nSegmentLength = int.Parse(ctlCameraDataCtl.SegmentLength.Text);
-            int nColorRadius = int.Parse(ctlCameraDataCtl.ColorRadius.Text);
-            int nSpatialRadius = int.Parse(ctlCameraDataCtl.SpatialRadius.Text);
-
-            CudaInvoke.MeanShiftSegmentation(cudaImage, cvimgOutput, nSpatialRadius, nColorRadius, nSegmentLength, new MCvTermCriteria(nNumIterations), null);
-            nSum = SumData(cvimgOutput.Mat);
-
-            Emgu.CV.Image<Bgr, Byte> cvimgUndistorted = UndistortBigImage<Bgra, Byte>(cvimgOutput).Convert<Bgr,Byte>();
-            Emgu.CV.Image<Bgr, Byte> cvimgUndistortedColor = UndistortBigImage<Bgr, Byte>(cvimgColor);
-
-            EraseDrawingBorders<Bgr,byte>(ref cvimgUndistorted);
-
-            // Difference of gaussians math
-            double grad1 = double.Parse(ctlCameraDataCtl.GW1Factor.Text) + 1.0;
-            double gsigma1 = Math.Sqrt(-(grad1 * grad1) / (2 * Math.Log10(1.0 / 255.0)));
-            double gsigmasq1 = 2 * gsigma1 * gsigma1;
-            double gL1 = Math.Sqrt(-gsigmasq1 * Math.Log10(1.0 / 255.0));
-            int n1 = (int)(Math.Ceiling(gL1) * 2.0) ;
-            int gw1 = (n1%2==1) ? n1 : n1+1 ;
-
-            double grad2 = double.Parse(ctlCameraDataCtl.GW2Factor.Text) + 1.0;
-            double gsigma2 = Math.Sqrt(-(grad2 * grad2) / (2 * Math.Log10(1.0 / 255.0)));
-            double gsigmasq2 = 2 * gsigma2 * gsigma2;
-            double gL2 = Math.Sqrt(-gsigmasq2 * Math.Log10(1.0 / 255.0));
-            int n2 = (int)(Math.Ceiling(gL2) * 2.0) ;
-            int gw2 = (n2 % 2==1) ? n2 : n2 + 1;
-
-            Emgu.CV.Image<Bgr, Byte> cvimgTemp = cvimgUndistorted.SmoothMedian(7);
-            Emgu.CV.Image<Bgr, Byte> g1 = cvimgTemp.SmoothGaussian(gw1, gw1, gsigma1, gsigma1).Convert<Bgr, Byte>();
-            Emgu.CV.Image<Bgr, Byte> g2 = cvimgTemp.SmoothGaussian(gw2, gw2, gsigma2, gsigma2).Convert<Bgr, Byte>();
-
-            cvimgTemp = g1.Sub(g2);
-            Emgu.CV.Image<Bgr, Byte> cvimgTemp2 = cvimgTemp.ThresholdBinary(new Bgr(0, 0, 0), new Bgr(255.0, 255.0, 255.0));
-            cvimgTemp2.Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            Emgu.CV.Image<Gray, Byte>[] thgArr = cvimgTemp2.Split();
-            thgArr[0].Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            thgArr[1].Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            thgArr[2].Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            Emgu.CV.Image<Gray, Byte> cvimgTemp3 = thgArr[0].Or(thgArr[1].Or(thgArr[2]));
-            cvimgTemp3.Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            Emgu.CV.Image<Gray, ushort> cvimgTemp4 = cvimgTemp3.Convert<Gray,ushort>();
-            cvimgTemp4.Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-            Emgu.CV.Image<Gray, ushort> thg = cvimgTemp4.ThresholdBinary(new Gray(1), new Gray(65535));
-            thg.Save("c:\\users\\g.norkus\\desktop\\cvimgUndistortedcs.png");
-
-            GenerateDetectMaskPolys(cvimgUndistorted.Size);
-
-            Emgu.CV.Image<Bgr, Byte> cvimgUndistortedEmptyPolys = cvimgUndistorted.Convert<Bgr, Byte>();
-            Emgu.CV.Image<Gray, ushort> timg = DrawRectDetectMask<Gray,ushort>(ref thg);
-            timg.Save("c:\\users\\g.norkus\\desktop\\cvimgtimgbeforecs.png");
-            Emgu.CV.Image<Bgr, Byte> timgOrg = DrawRectDetectMaskPolys<Gray,ushort>(ref thg);
-            timg = thg.And(timg);
-
-            timg.Save("c:\\users\\g.norkus\\desktop\\cvimgtimgcs.png");
-            timgOrg.Save("c:\\users\\g.norkus\\desktop\\cvimgtimgOrgcs.png");
-            thg.Save("c:\\users\\g.norkus\\desktop\\cvimgthgcs.png");
-
-            float[] histIgnoreVals = new float[1] ;
-
-            nSum = SumData(thg.Mat);
-            nSum = SumData(timg.Mat);
-            nSum = SumData(timgOrg.Mat);
-
-
-            CalcEmptyPolys(ref thg, ref timg, ref histIgnoreVals);
-            DisplayEmptyPolys<Gray, ushort>(ref timg, ref histIgnoreVals);
-            DisplayEmptyPolys<Bgr, Byte>(ref cvimgUndistortedEmptyPolys, ref histIgnoreVals);
-
-            timg.Save("c:\\users\\g.norkus\\desktop\\cvimgtimgcs.png");
-
-            Emgu.CV.Image<Bgr, Byte> cvimgDewarpedOrg = cvimgUndistorted
-                                    .WarpPerspective<double>(homographyMatrix
-                                                            , (int)(dLength * dScaleFactor)
-                                                            , (int)(dWidth * dScaleFactor)
-                                                            , Inter.Nearest // Inter.Cubic
-                                                            , Warp.Default
-                                                            , BorderType.Default
-                                                            , new Bgr(0, 0, 0));
-
-            Emgu.CV.Image<Bgr, Byte> cvimgDewarped = new Emgu.CV.Image<Bgr, Byte>(cvimgDewarpedOrg.Size);
-            cvimgDewarpedOrg.CopyTo(cvimgDewarped);
-
-            DisplayEmptyPolys<Bgr, Byte>(ref cvimgDewarpedOrg, ref histIgnoreVals, true);
-
-            Emgu.CV.Image<Bgr, Byte> cvimgDewarpedSeg = new Emgu.CV.Image<Bgr, Byte>(cvimgDewarpedOrg.Size);
-            cvimgDewarpedOrg.CopyTo(cvimgDewarpedSeg);
-
-
-            Emgu.CV.Image<Bgr, Byte> cvimgDewarpedShaded = cvimgUndistortedColor
-                                    .WarpPerspective<double>(homographyMatrix
-                                                            , (int)(dLength * dScaleFactor)
-                                                            , (int)(dWidth * dScaleFactor)
-                                                            , Inter.Cubic
-                                                            , Warp.Default
-                                                            , BorderType.Default
-                                                            , new Bgr(0, 0, 0));
-
-            Emgu.CV.Image<Gray, Byte> cvimgDewarpedThg = thg
-                    .WarpPerspective<double>(homographyMatrix
-                                            , (int)(dLength * dScaleFactor)
-                                            , (int)(dWidth * dScaleFactor)
-                                            , Inter.Cubic
-                                            , Warp.Default
-                                            , BorderType.Default
-                                            , new Gray(0)).Convert<Gray,Byte>();
-
-            int nNumFills = 0;
-
-            // vecRackPolys is a member value of the MainWindow class.
-            // We may need to isolate the major objects before attempting to 
-            // do our adjustment algorithm.  The adjustment algorithm
-            // will look at the 4 quadrants of the image area and
-            // see if they can be adjusted individually.  They will also
-            // determine if 
-            if (vecRackPolys.Size > 0)
-            {
-                System.Drawing.Point seedpt;
-                System.Drawing.Point seedptd;
-
-                System.Drawing.Size[] tl = new System.Drawing.Size[4]
-                {
-                    new System.Drawing.Size(-1,-1),
-                    new System.Drawing.Size(1, -1),
-                    new System.Drawing.Size(1, 1),
-                    new System.Drawing.Size(-1, 1)
-                };
-
-                System.Drawing.Size tr = new System.Drawing.Size(1, -1);
-                System.Drawing.Size br = new System.Drawing.Size(1, 1);
-                System.Drawing.Size bl = new System.Drawing.Size(-1, 1);
-                Rectangle rc = new Rectangle();
-
-                System.Drawing.Size masksz = cvimgDewarpedOrg.Size + new System.Drawing.Size(2, 2);
-                Emgu.CV.Image<Gray, Byte> mask = new Emgu.CV.Image<Gray, Byte>(masksz);
-
-                int nFillToleranceLow = (int)float.Parse(ctlCameraDataCtl.FillToleranceLow.Text);
-                int nFillToleranceHigh = (int)float.Parse(ctlCameraDataCtl.FillToleranceHigh.Text);
-
-                for (int i=0; i<vecRackPolys.Size; i++)
-                {
-                    if (histIgnoreVals[i+1] == 0)
-                    {
-                        VectorOfPointF vpf = vecRackPolys[i];
-
-                        for (int k=0; k<4; k++)
-                        {
-                            seedpt = Point.Round(vecRackPolys[i][k]);
-                            seedptd = seedpt + tl[k];
-
-                            // Is the point to be filled already white?  If so, ignore it.
-                            byte Red_val = cvimgDewarpedOrg.Data[seedptd.Y, seedptd.X, 0];
-                            byte Green_val = cvimgDewarpedOrg.Data[seedptd.Y, seedptd.X, 1];
-                            byte Blue_val = cvimgDewarpedOrg.Data[seedptd.Y, seedptd.X, 2];
-
-                            if (Red_val != 255 || Green_val != 255 || Blue_val != 255)
-                            {
-                                CvInvoke.FloodFill(cvimgDewarpedOrg
-                                                    , null // mask
-                                                    , seedptd
-                                                    , new Bgr(255, 255, 255).MCvScalar
-                                                    , out rc
-                                                    , new Bgr(nFillToleranceLow, nFillToleranceLow, nFillToleranceLow).MCvScalar
-                                                    , new Bgr(nFillToleranceHigh, nFillToleranceHigh, nFillToleranceHigh).MCvScalar
-                                                    , Connectivity.EightConnected
-                                                    , FloodFillType.FixedRange);
-                                nNumFills++;
-                            }
-                        }
-                    }
-                }
-
-                Emgu.CV.Image<Gray, byte> thresh = cvimgDewarpedOrg.ThresholdBinary(new Bgr(254, 254, 254), new Bgr(255, 255, 255)).Convert<Gray, byte>();
-
-                int nImageIndex = int.Parse(ctlCameraDataCtl.ImageIndex.Text);
-
-                // Draw on top of the dewarped thg a set of rectangles spaced by 2.629 inches, 0.75 inchs wide
-                RectangleF rectangleF = new RectangleF(new PointF(1F*dScaleFactorF, 11F*dScaleFactorF), new SizeF(1F * dScaleFactorF, 63.125F * dScaleFactorF));
-                Rectangle rectangle = Rectangle.Round(rectangleF); 
-                Emgu.CV.Image<Bgr,Byte> cvimgTestColumns = new Image<Bgr,Byte>(cvimgDewarpedThg.Size);
-
-
-                do
-                {
-                    Point[] pts = new Point[4];
-                    pts[0] = rectangle.Location;
-                    pts[1] = pts[0] + new System.Drawing.Size(rectangle.Width, 0);
-                    pts[2] = pts[1] + new System.Drawing.Size(0,rectangle.Height);
-                    pts[3] = pts[2] + new System.Drawing.Size(-rectangle.Width, 0);
-
-                    cvimgTestColumns.FillConvexPoly(pts, new Bgr(0, 0, 160));
-                    cvimgTestColumns.Draw(rectangle, new Bgr(0, 0, 255), 1);
-
-                    rectangleF.Offset(2.629F * dScaleFactorF, 0F);
-                    rectangle = Rectangle.Round(rectangleF);
-                } while (rectangle.Left < cvimgDewarpedThg.Width);
-
-
-                Emgu.CV.Image<Gray,Byte> threshDilateErode = thresh.Dilate(10).Erode(10);
-
-                // threshDilateErode now contains the contours we want to search through.
-                using (VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint())
-                {
-                    CvInvoke.FindContours(threshDilateErode, contours, null, RetrType.Ccomp, ChainApproxMethod.ChainApproxNone);
-                    int count = contours.Size;
-                    Emgu.CV.Util.VectorOfPoint approx = new VectorOfPoint();
-                    LineSegment2D widthLine = new LineSegment2D();
-                    LineSegment2D heightLine = new LineSegment2D();
-
-                    for (int i = 0; i < count; i++)
-                    {
-                        if (contours[i] != null && (contours[i].Size > 150))
-                        {
-                            //int kk;
-                            //RotatedRect rc = CvInvoke.MinAreaRect(contours[i]);
-                            //System.Drawing.Point[] vertices = Array.ConvertAll(rc.GetVertices(), System.Drawing.Point.Round);
-                            double epsilon = 0.05 * Emgu.CV.CvInvoke.ArcLength(contours[i], true);
-                            Emgu.CV.CvInvoke.ApproxPolyDP(contours[i], approx, epsilon, true);
-
-                            double dArea = Emgu.CV.CvInvoke.ContourArea(contours[i]);
-                            Boolean bAreaIsConvex = Emgu.CV.CvInvoke.IsContourConvex(approx);
-
-                            if (approx.Size == 4
-                                && dArea > 40000
-                                   )
-                            {
-                                System.Drawing.Point center;
-                                System.Drawing.Size size;
-                                string tstr;
-                                int nBaseLine;
-
-                                RotatedRect rotrc = CvInvoke.MinAreaRect(contours[i]);
-
-                                System.Drawing.Point[] vertices = Array.ConvertAll(rotrc.GetVertices(), System.Drawing.Point.Round);
-                                CvInvoke.Polylines(cvimgDewarpedOrg
-                                                    //, approx
-                                                    , contours[i].ToArray()
-                                                    //, vertices
-                                                    , true
-                                                    , new Bgr(0, 255, 255).MCvScalar
-                                                    , 3
-                                                        );
-
-                                CvInvoke.Polylines(cvimgDewarpedOrg
-                                                    //, approx
-                                                    //, contours[i].ToArray()
-                                                    , vertices
-                                                    , true
-                                                    , new Bgr(0, 255, 0).MCvScalar
-                                                    , 5
-                                                        );
-
-                                List<Point3D> pmeasurelist = new List<Point3D>();                            
-                                List<Point> plist = new List<Point>();
-                                plist.AddRange(contours[i].ToArray());
-
-                                // First, sort by y, and create a list of widths
-                                var psortedlist = plist.OrderBy(p => p.Y).ThenBy(p => p.X);
-
-                                dMedianHeightF = dMedianWidthF = 0F;
-
-                                int nelem = psortedlist.Count();
-                                if (nelem > 0)
-                                {
-                                    List<int> widths = new List<int>();
-                                    int nCurX = psortedlist.ElementAt(0).X;
-                                    int nCurY = psortedlist.ElementAt(0).Y;
-                                    int nFirstX = nCurX;
-                                    int nWidth = 0;
-
-                                    foreach (Point p in psortedlist)
-                                    {
-                                        if (nCurY != p.Y)
-                                        {
-                                            // are we on a new line?  Save in a way that we can both
-                                            // sort width and know the segment that was used for measuring
-                                            pmeasurelist.Add(new Point3D(nCurX, nCurY, nCurX-nFirstX));
-
-                                            widths.Add(nCurX - nFirstX);
-                                            nCurY = p.Y;
-                                            nCurX = p.X;
-                                            nFirstX = nCurX;
-                                        }
-                                        else
-                                            nCurX = p.X;
-                                    }
-                                    widths.Add(nCurX - nFirstX);
-                                    pmeasurelist.Add(new Point3D(nCurX, nCurY, nCurX - nFirstX));
-
-                                    var orderedMeasureList = pmeasurelist.OrderBy(p => p.Z);
-                                        
-                                    Point3D pLeft = orderedMeasureList.ElementAt(orderedMeasureList.Count() / 2);
-                                    double nMedianWidth = pLeft.Z;
-                                    dMedianWidthF = (float)nMedianWidth / dScaleFactorF;
-                                    widthLine.P1 = new Point((int)pLeft.X, (int)pLeft.Y);
-                                    widthLine.P2 = new Point((int)(pLeft.X - pLeft.Z), (int)pLeft.Y);
-                                }
-
-
-                                // Then, sort by x, and create a list of heights
-                                psortedlist = plist.OrderBy(p => p.X).ThenBy(p => p.Y);
-                                pmeasurelist.Clear();
-
-                                nelem = psortedlist.Count();
-                                if (nelem > 0)
-                                {
-                                    List<int> heights = new List<int>();
-                                    int nCurX = psortedlist.ElementAt(0).X;
-                                    int nCurY = psortedlist.ElementAt(0).Y;
-                                    int nFirstY = nCurY;
-
-                                    foreach (Point p in psortedlist)
-                                    {
-                                        if (nCurX != p.X)
-                                        {
-                                            // are we on a new line?
-                                            pmeasurelist.Add(new Point3D(nCurX, nCurY, nCurY - nFirstY));
-                                            heights.Add(nCurY - nFirstY);
-                                            nCurY = p.Y;
-                                            nCurX = p.X;
-                                            nFirstY = nCurY;
-                                        }
-                                        else
-                                            nCurY = p.Y;
-                                    }
-                                    heights.Add(nCurY - nFirstY);
-                                    pmeasurelist.Add(new Point3D(nCurX, nCurY, nCurY - nFirstY));
-
-                                    heights.Sort();
-                                    var orderedMeasureList = pmeasurelist.OrderBy(p => p.Z);
-
-                                    //int nMedianHeight = heights.ElementAt(heights.Count() / 2);
-                                    Point3D pLeft = orderedMeasureList.ElementAt(orderedMeasureList.Count() / 2);
-                                    double nMedianHeight = pLeft.Z;
-                                    dMedianHeightF = (float)nMedianHeight / dScaleFactorF;
-                                    heightLine.P1 = new Point((int)pLeft.X, (int)pLeft.Y);
-                                    heightLine.P2 = new Point((int)(pLeft.X), (int)(pLeft.Y-pLeft.Z));
-                                }
-
-                                center = approx[0];
-                                center.Offset(approx[1]);
-                                center.Offset(approx[2]);
-                                center.Offset(approx[3]);
-                                center.X /= 4;
-                                center.Y /= 4;
-
-                                tstr = "W=" + dMedianWidthF.ToString("0.00") + "\nH=" + dMedianHeightF.ToString("0.00");
-
-                                nBaseLine = 0;
-                                System.Drawing.Size sz = Emgu.CV.CvInvoke.GetTextSize(tstr.Split("\n", 2)[0], FontFace.HersheyPlain, 6, 3, ref nBaseLine);
-                                size = new System.Drawing.Size() - sz;
-                                size.Width /= 2;
-
-                                Emgu.CV.CvInvoke.ArrowedLine(cvimgDewarpedOrg, heightLine.P1, heightLine.P2, new MCvScalar(0, 0, 255), 3, LineType.EightConnected, 0, 0.1);
-                                Emgu.CV.CvInvoke.ArrowedLine(cvimgDewarpedOrg, widthLine.P1, widthLine.P2, new MCvScalar(0, 0, 255), 3, LineType.EightConnected, 0, 0.1);
-
-                                foreach (string sstr in tstr.Split("\n", 2))
-                                {
-                                    Emgu.CV.CvInvoke.PutText(cvimgDewarpedOrg, sstr, center + size, FontFace.HersheyPlain, 6, new MCvScalar(0, 0, 0), 3);
-                                    center.Y += 100;
-                                }
-                            }
-                            else
-                            if (dArea > 40000)
-                            {
-                                Emgu.CV.Structure.RotatedRect rcRotated = CvInvoke.MinAreaRect(contours[i]);
-                                System.Drawing.Point[] vertices = Array.ConvertAll(rcRotated.GetVertices(), System.Drawing.Point.Round);
-
-                                CvInvoke.Polylines(cvimgDewarpedOrg
-                                                    , contours[i].ToArray()
-                                                    , true
-                                                    , new Bgr(0, 0, 255).MCvScalar
-                                                    , 3
-                                                        );
-                                CvInvoke.Polylines(cvimgDewarpedOrg
-                                                    , vertices
-                                                    , true
-                                                    , new Bgr(0, 255, 0).MCvScalar
-                                                    , 5
-                                                        );
-                            }
-                        }
-                    }
-
-
-                    Title =   "MainWindow - Undistort Done - " 
-                            + System.IO.Path.GetFileName(szLastFileName) 
-                            + "  Contour Count=" + contours.Size.ToString();
-                }
-
-
-
-                /*************************************************/
-                switch (nImageIndex)
-                {
-                    case 0: gdiImage.Source = ToBitmapSource(cvimgDewarpedShaded); gdiGreyImage.Source = ToBitmapSource(cvimgDewarped); break;
-                    case 1: gdiImage.Source = ToBitmapSource(thresh); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 2: gdiImage.Source = ToBitmapSource(cudaImageOut.ToMat()); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 3: gdiImage.Source = ToBitmapSource(thg); gdiGreyImage.Source = ToBitmapSource(cvimgUndistortedColor); break;
-                    case 4: gdiImage.Source = ToBitmapSource(cvimgUndistorted); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 5: gdiImage.Source = ToBitmapSource(cvimgDewarpedThg); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 6: gdiImage.Source = ToBitmapSource(cvimgDewarpedSeg); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 7: gdiImage.Source = ToBitmapSource(cvimgTestColumns); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 8: gdiImage.Source = ToBitmapSource(thg); gdiGreyImage.Source = ToBitmapSource(thresh); break;
-                    case 9: gdiImage.Source = ToBitmapSource(threshDilateErode); gdiGreyImage.Source = ToBitmapSource(cvimgDewarpedOrg); break;
-                    case 10: gdiImage.Source = ToBitmapSource(cvimgUndistortedEmptyPolys); gdiGreyImage.Source = ToBitmapSource(timgOrg); break;
-                }
-                //gdiImage.Source = ToBitmapSource(cudaImageOut.ToMat());
-            }
-        }
-
+        
         private void LoadCheckerImages(object sender, RoutedEventArgs e)
         {
             LoadCalibrationImages();
@@ -2021,6 +1737,12 @@ namespace SampleOpenCV
         {
             DetectEdges(true);
         }
+
+        private void UndistortImageFoldersClick(object sender, RoutedEventArgs e)
+        {
+            FolderBrowseDetectEdges();
+        }
+
 
         private void RedoClick(object sender, RoutedEventArgs e)
         {
@@ -2053,9 +1775,9 @@ namespace SampleOpenCV
                 }
             }
 
-             CaptureFrame(sender, e, 0);
-            NumArucoImagesSnapped.Text = nNumArucosSnapped.ToString();
-            NumCheckerImagesSnapped.Text = nNumCheckersSnapped.ToString();
+             CaptureFrame(sender, e, 3);
+            //NumArucoImagesSnapped.Text = nNumArucosSnapped.ToString();
+            //NumCheckerImagesSnapped.Text = nNumCheckersSnapped.ToString();
 
 
             //using (WebClient client = new WebClient())
@@ -2111,7 +1833,108 @@ namespace SampleOpenCV
             // }
         }
 
+        private async void SnapshotMeasure_Click(object sender, RoutedEventArgs e)
+        {
+            string prefix;
+            string prefixtype;
+            string prefixtime;
+            string prefixipaddr;
+            string strSaveNoFlash;
+            string strSaveFlash;
+            bool bUseLastFile = false;
 
+            prefixtime = prefix = prefixipaddr = prefixtype = string.Empty;
+            prefix = Properties.Settings.Default.MeasurePath;
+            prefixtype = "Measure";
+            if (prefix != null && prefix.Length > 0 && prefix.ElementAt(prefix.Length - 1) != '\\')
+            {
+                prefix += "\\";
+            }
+            if (prefix == null || Directory.Exists(prefix) == false)
+            {
+                MessageBoxResult rval =
+                MessageBox.Show("The path " + prefix + " does not exist.  Do you want to select a path?  If yes, please enter a path and press the Snap Checker Button again", "Image Capture Path Does Not Exist", MessageBoxButton.YesNo);
+                if (rval == MessageBoxResult.Yes)
+                    ctlCameraDataCtl.SetMeasurePath_Click(sender, e);
+                return;
+            }
+
+
+            // Did the user change the CameraIP?
+            if (strSelectedCameraURL != (ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData).URL)
+            {
+                // Stop the stream
+                await MediaView.Media.Close();
+                MediaView.Visibility = Visibility.Collapsed;
+                gdiImage.Visibility = Visibility.Visible;
+            }
+
+            // Start the video, and inform the user the
+            // video was started and that they need to press
+            // the snap button again to take a picture...
+
+            //bool bSuccess = await RefreshButtonWork_Async(sender, e);
+            bool bSuccess = true;
+
+            strSelectedCameraURL = string.Empty;
+            if (ctlCameraDataCtl.CameraIPComboBox.SelectedIndex >= 0)
+                strSelectedCameraURL = (ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData).URL;
+
+            if (strSelectedCameraURL.ToLower().Contains("snapshot") == false)
+                return;
+
+            string curCameraURL = strSelectedCameraURL.ToLower();
+            string curFlashCameraURL = curCameraURL.Replace("snapshot", "flashsnapshot");
+
+            bool bCtrl = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
+
+            if (bCtrl == false)
+            {
+                using (WebClient client = new WebClient())
+                {
+                    DateTime dateTime = DateTime.Now;
+
+                    prefixtime = dateTime.ToString("yyyy-MM-dd-HH-mm-ss");
+                    strSaveFlash = prefix + prefixtype + "-00-Flash-" + prefixtime + ".png";
+                    client.DownloadFile(curFlashCameraURL, strSaveFlash);
+
+                    prefixtime = dateTime.ToString("yyyy-MM-dd-HH-mm-ss");
+                    strSaveNoFlash = prefix + prefixtype + "-00-NoFlash-" + prefixtime + ".png";
+                    client.DownloadFile(curCameraURL, strSaveNoFlash);
+
+                    Emgu.CV.Image<Bgr, Byte> cvimgFlash = new Image<Bgr, Byte>(strSaveFlash);
+                    Emgu.CV.Image<Bgr, Byte> cvimgNoFlash = new Image<Bgr, Byte>(strSaveNoFlash);
+                    Emgu.CV.Image<Bgr, Byte> cvimgDiff = cvimgFlash.Sub(cvimgNoFlash);
+
+                    prefixtime = dateTime.ToString("yyyy-MM-dd-HH-mm-ss");
+                    szLastFileName = prefix + prefixtype + "-01-Diff-" + prefixtime + ".png";
+                    szLastFileNameFlash = "";
+                    cvimgDiff.Save(szLastFileName);
+
+                    DetectEdges(false);
+
+                    bSuccess = true;
+                }
+            }
+            else
+            {
+                DetectEdges(true);
+                bSuccess = true;
+            }
+
+            if (bSuccess)
+            {
+                //MessageBox.Show("The stream was started.  Please press Snap again to take a picture for calibration.");
+                return;
+            }
+            else
+            {
+                MessageBox.Show("The stream could not be started.  Please check cable connections.");
+                MediaView.Visibility = Visibility.Collapsed;
+                gdiImage.Visibility = Visibility.Visible;
+                return;
+            }
+        }
 
         static async Task ProcessRepositoriesAsyncPost(HttpClient client, System.Drawing.Image img )
         {
@@ -2382,6 +2205,7 @@ namespace SampleOpenCV
             Properties.Settings.Default.Save();
             base.OnClosing(e); 
         }
+
     }
 
 

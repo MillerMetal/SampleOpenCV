@@ -280,6 +280,30 @@ namespace SampleOpenCV.UserControls
             bInWorkStationChange = false;
         }
 
+        public void SetMeasurePath_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.WindowsAPICodePack.Dialogs.CommonOpenFileDialog();
+
+            dlg.Title = "Pick Snapshot Images Path Folder";
+            dlg.IsFolderPicker = true;
+            dlg.InitialDirectory = Properties.Settings.Default.MeasurePath;
+
+            dlg.AddToMostRecentlyUsedList = true;
+            dlg.AllowNonFileSystemItems = false;
+            dlg.DefaultDirectory = Properties.Settings.Default.MeasurePath;
+            dlg.EnsureFileExists = true;
+            dlg.EnsurePathExists = true;
+            dlg.EnsureReadOnly = true;
+            dlg.EnsureValidNames = true;
+            dlg.Multiselect = true;
+            dlg.ShowPlacesList = true;
+
+            if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
+            {
+                Properties.Settings.Default.MeasurePath = dlg.FileName;
+            }
+        }
+
         public void SetArucoPath_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Microsoft.WindowsAPICodePack.Dialogs.CommonOpenFileDialog();

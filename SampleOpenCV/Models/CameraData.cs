@@ -85,6 +85,34 @@ namespace SampleOpenCV
             ,BorderBottom,BorderLeft,BorderRight,BorderTop,URL,DiffOfGaussRadius1,DiffOfGaussRadius2,DiffOfGaussSigma1,DiffOfGaussSigma2
             ,FillToleranceHigh,FillToleranceLow,ImageIndex,NumIterations,ColorRadius,SpatialRadius,CameraProcessingURL).GetHashCode();
 
+        public int ROILeft
+        {
+            get { return m_nROILeft; }
+            set { m_nROILeft = value; OnPropertyChanged("ROILeft"); }
+        }
+        int m_nROILeft;
+        public int ROITop
+        {
+            get { return m_nROITop; }
+            set { m_nROITop = value; OnPropertyChanged("ROITop"); }
+        }
+        int m_nROITop;
+        public int ROIRight
+        {
+            get { return m_nROIRight; }
+            set { m_nROIRight = value; OnPropertyChanged("ROIRight"); }
+        }
+        int m_nROIRight;
+        public int ROIBottom
+        {
+            get { return m_nROIBottom; }
+            set { m_nROIBottom = value; OnPropertyChanged("ROIBottom"); }
+        }
+        int m_nROIBottom;
+
+
+
+
         public int CameraPK
         {
             get { return m_CameraPK; }
@@ -265,6 +293,11 @@ namespace SampleOpenCV
 
         public CameraData()
         {
+            ROIBottom = 0;
+            ROILeft = 0;
+            ROIRight = 0;
+            ROITop = 0;
+
             CameraPK = -1;
             CameraMatrix = DistortionMatrix = HomographyMatrix = "";
             ResultScale = 32;
@@ -331,6 +364,10 @@ namespace SampleOpenCV
             ColorRadius             = reader.IsDBNull(21) ? 0 : reader.GetInt32(21);
             SpatialRadius           = reader.IsDBNull(22) ? 0 : reader.GetInt32(22);
             CameraProcessingURL     = reader.IsDBNull(23) ? "" :reader.GetString(23);
+            ROILeft                 = reader.IsDBNull(24) ? 0 : reader.GetInt32(24);
+            ROITop                  = reader.IsDBNull(25) ? 0 : reader.GetInt32(25);
+            ROIRight                = reader.IsDBNull(26) ? 0 : reader.GetInt32(26);
+            ROIBottom               = reader.IsDBNull(27) ? 0 : reader.GetInt32(27);
 
             // Flag all of the properties
             OnPropertyChanged(string.Empty);
@@ -340,13 +377,14 @@ namespace SampleOpenCV
 
         public bool SaveData(ref Microsoft.Data.SqlClient.SqlCommand sqlCommand)
         {
+            int rval;
             if (sqlCommand != null)
             {
                 // We will null out the CameraStreamURL in the 
                 // Machine table.  The correct URL exists in the
                 // Camera table.
                 sqlCommand.Parameters.Clear();
-                sqlCommand.CommandText = @"Update Camera Set
+                sqlCommand.CommandText = @"UPDATE [MachineInterface].[dbo].Camera SET
                                             CameraMatrix            = @CameraMatrix       
                                            ,DistortionMatrix        = @DistortionMatrix   
                                            ,HomographyMatrix        = @HomographyMatrix   
@@ -370,6 +408,10 @@ namespace SampleOpenCV
                                            ,MSSColorRadius          = @MSSColorRadius        
                                            ,MSSSpatialRadius        = @MSSSpatialRadius      
                                            ,CameraProcessingURL     = @CameraProcessingURL
+                                           ,ROILeft                 = @ROILeft
+                                           ,ROITop                  = @ROITop
+                                           ,ROIRight                = @ROIRight
+                                           ,ROIBottom               = @ROIBottom
                                         Where CameraPK = @CameraPK";
 
                 sqlCommand.Parameters.Add(new SqlParameter("@CameraPK", SqlDbType.Int)).Value = this.CameraPK       ;
@@ -396,8 +438,12 @@ namespace SampleOpenCV
                 sqlCommand.Parameters.Add(new SqlParameter("@MSSColorRadius", SqlDbType.Int)).Value = this.ColorRadius        ;
                 sqlCommand.Parameters.Add(new SqlParameter("@MSSSpatialRadius", SqlDbType.Int)).Value = this.SpatialRadius      ;
                 sqlCommand.Parameters.Add(new SqlParameter("@CameraProcessingURL", SqlDbType.Text)).Value = this.CameraProcessingURL;
+                sqlCommand.Parameters.Add(new SqlParameter("@ROILeft", SqlDbType.Int)).Value = this.ROILeft;
+                sqlCommand.Parameters.Add(new SqlParameter("@ROITop", SqlDbType.Int)).Value = this.ROITop;
+                sqlCommand.Parameters.Add(new SqlParameter("@ROIRight", SqlDbType.Int)).Value = this.ROIRight;
+                sqlCommand.Parameters.Add(new SqlParameter("@ROIBottom", SqlDbType.Int)).Value = this.ROIBottom;
 
-                sqlCommand.ExecuteNonQuery();               
+                rval = sqlCommand.ExecuteNonQuery();               
             }
 
             return true;

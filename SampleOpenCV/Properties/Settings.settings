@@ -41,5 +41,20 @@
     <Setting Name="CheckerPath" Type="System.String" Scope="User">
       <Value Profile="(Default)">CheckerFiles</Value>
     </Setting>
+    <Setting Name="MeasurePath" Type="System.String" Scope="User">
+      <Value Profile="(Default)">SnapshotFiles</Value>
+    </Setting>
+    <Setting Name="ROILeft" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="ROITop" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="ROIRight" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="ROIBottom" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

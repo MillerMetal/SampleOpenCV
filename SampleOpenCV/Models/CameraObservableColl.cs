@@ -61,6 +61,10 @@ namespace SampleOpenCV
                                                       ,[MSSColorRadius]                 /* 21 */
                                                       ,[MSSSpatialRadius]               /* 22 */
                                                       ,[CameraProcessingURL]            /* 23 */
+                                                      ,[ROILeft]                        /* 24 */
+                                                      ,[ROITop]                         /* 25 */
+                                                      ,[ROIRight]                       /* 26 */
+                                                      ,[ROIBottom]                      /* 27 */
                                                         FROM [Camera]
                                                         WHERE [URL] IS NOT NULL
                                                         ORDER BY [URL] Asc";
@@ -180,7 +184,12 @@ namespace SampleOpenCV
                             ,ResultWidth        
                             ,MSSSegmentLength      
                             ,MSSSpatialRadius      
-                            ,URL)
+                            ,URL
+                            ,ROILeft
+                            ,ROITop
+                            ,ROIRight
+                            ,ROIBottom
+                                )
                                 VALUES
                             (@BorderBottom       
                             ,@BorderLeft         
@@ -204,7 +213,12 @@ namespace SampleOpenCV
                             ,@ResultWidth        
                             ,@SegmentLength      
                             ,@SpatialRadius      
-                            ,@URL)
+                            ,@URL
+                            ,@ROILeft
+                            ,@ROITop
+                            ,@ROIRight
+                            ,@ROIBottom
+                            )
                             Set @CameraPK = SCOPE_IDENTITY()";
                     sqlCommand.Parameters.Add("@BorderBottom        ", SqlDbType.Real ).Value = cam.BorderBottom;
                     sqlCommand.Parameters.Add("@BorderLeft          ", SqlDbType.Real).Value = cam.BorderLeft          ;
@@ -229,6 +243,10 @@ namespace SampleOpenCV
                     sqlCommand.Parameters.Add("@SegmentLength       ", SqlDbType.Int ).Value = cam.SegmentLength       ;
                     sqlCommand.Parameters.Add("@SpatialRadius       ", SqlDbType.Int ).Value = cam.SpatialRadius       ;
                     sqlCommand.Parameters.Add("@URL                 ", SqlDbType.NVarChar, 4000).Value = cam.URL ?? (object)DBNull.Value;
+                    sqlCommand.Parameters.Add("@ROILeft             ", SqlDbType.Int).Value = cam.ROILeft;
+                    sqlCommand.Parameters.Add("@ROITop              ", SqlDbType.Int).Value = cam.ROITop;
+                    sqlCommand.Parameters.Add("@ROIRight            ", SqlDbType.Int).Value = cam.ROIRight;
+                    sqlCommand.Parameters.Add("@ROIBottom           ", SqlDbType.Int).Value = cam.ROIBottom;
                     SqlParameter sqlParameter = sqlCommand.Parameters.Add("@CameraPK", SqlDbType.Int);
                     sqlParameter.Direction = ParameterDirection.Output ;
                     sqlCommand.ExecuteNonQuery();
