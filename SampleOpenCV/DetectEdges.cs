@@ -9,6 +9,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Numerics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,9 +23,61 @@ using Microsoft.VisualBasic;
 using MathNet.Spatial.Units;
 using System.Windows.Documents;
 using System.Collections.Immutable;
+using System.Windows.Forms;
+using System.Diagnostics.Eventing.Reader;
+using static MS.WindowsAPICodePack.Internal.CoreNativeMethods;
 
 namespace SampleOpenCV
 {
+    class IndexedLineSegmentLengthComparer : IComparer<IndexedLineSegment>
+    {
+        public int Compare(IndexedLineSegment x, IndexedLineSegment y)
+        {
+            if (x.linesegment.Length < y.linesegment.Length) return -1;
+            if (x.linesegment.Length > y.linesegment.Length) return 1;
+            return 0;
+        }
+    }
+    public class IndexedLineSegment {
+        public int ind {  get; set; }
+        public LineSegment2DF linesegment {  get; set; }
+
+        public override int GetHashCode()
+        {
+            return ind;
+        }
+
+        public override bool Equals(object obj)
+        {
+            IndexedPoint other = obj as IndexedPoint;
+            return ind == other.ind;
+        }
+        public IndexedLineSegment()
+        {
+            linesegment = new LineSegment2DF(); 
+            ind = 0;
+        }
+
+        public IndexedLineSegment(LineSegment2DF newlinesegment, int newind)
+        {
+            linesegment = newlinesegment; ind = newind;
+        }
+
+        static public IndexedLineSegment[] ToArray(List<LineSegment2DF> listArrIndex)
+        {
+            IndexedLineSegment[] ptArr = null;
+            int i;
+
+            ptArr = new IndexedLineSegment[listArrIndex.Count];
+            for (i = 0; i < listArrIndex.Count; i++)
+                ptArr[i].linesegment = listArrIndex[i];
+
+            return ptArr;
+        }
+    }
+
+
+
     public class LinkedLineSegment2D 
     {
         public Emgu.CV.Structure.LineSegment2D lineOriginal ;
@@ -349,14 +402,20 @@ namespace SampleOpenCV
             return GenerateLinearOffsets((int)pt1.X, (int)pt1.Y, (int)pt2.X, (int)pt2.Y, bIgnoreLast);
         }
 
-
+        // DistanceToFilledPixel -
+        // Takes source and result images as parameters.  The source image is copied
+        // to the result image, and lines are drawn orthoganal to the direction of 
+        // the horizontal list of coordinates provided.  The rvalLines list returned
+        // is drawn in the order of the pixel values listed...
         bool DistanceToFilledPixel(ref Emgu.CV.Image<Gray, Byte> imgThresholdAdaptive
                                   , ref Emgu.CV.Image<Bgra, Byte> imgResult
                                   , ref List<System.Drawing.PointF> listHorz
                                   , ref List<System.Drawing.PointF> listUp
                                   , ref List<System.Drawing.PointF> listDown
-                                  , ref System.Drawing.PointF rval1
-                                  , ref System.Drawing.PointF rval2
+                                  , ref List<IndexedLineSegment> rvalLines
+                                  , ref IndexedLineSegment rvalSegment
+                                  //, ref System.Drawing.PointF rval1
+                                  //, ref System.Drawing.PointF rval2
                                   , MCvScalar fillcolor)
         {
             bool bval = true;
@@ -366,8 +425,12 @@ namespace SampleOpenCV
             byte[,,] threshData = imgThresholdAdaptive.Data;
             int w = imgThresholdAdaptive.Width;
             int h = imgThresholdAdaptive.Height;
+            int nNumLines = 0;
+            PointF rval1 = new PointF();
+            PointF rval2 = new PointF();
 
             System.Drawing.PointF testpt = new PointF();
+            rvalLines.Clear();
 
             for (i = 0; i < listHorz.Count; i++)
             {
@@ -413,8 +476,44 @@ namespace SampleOpenCV
 
                 if (bfounddown && bfoundup)
                 {
-                    CvInvoke.Line(imgResult, System.Drawing.Point.Round(rval1), System.Drawing.Point.Round(rval2), fillcolor);
+                    //CvInvoke.Line(imgResult, System.Drawing.Point.Round(rval1), System.Drawing.Point.Round(rval2), fillcolor);
+                    rvalLines.Add(new IndexedLineSegment(new LineSegment2DF(rval1, rval2), nNumLines));
                 }
+            }
+
+            if (rvalLines.Count > 0) 
+            {
+                // If we found lines, lets sort them by length.
+                IndexedLineSegment[] linesSortedByLength = rvalLines.ToArray();
+                Array.Sort(linesSortedByLength, new IndexedLineSegmentLengthComparer());
+
+                // Now, pick off the median value from that list
+                rvalSegment = linesSortedByLength[linesSortedByLength.Length/2];
+
+                System.Drawing.PointF MyP1 = rvalSegment.linesegment.P1;
+                System.Drawing.PointF MyP2 = rvalSegment.linesegment.P2;
+                System.Numerics.Vector2 MyDir = rvalSegment.linesegment.Direction.ToVector2();
+
+                // Draw arrow heads and lines in both directions
+                CvInvoke.ArrowedLine(imgResult
+                                     , System.Drawing.Point.Round(MyP1)
+                                     , System.Drawing.Point.Round(MyP2)
+                                     , fillcolor
+                                     , 3
+                                     , LineType.EightConnected
+                                     , 0
+                                     , 30.0 / rvalSegment.linesegment.Length);
+                CvInvoke.ArrowedLine(imgResult
+                                     , System.Drawing.Point.Round(MyP2)
+                                     , System.Drawing.Point.Round(MyP1)
+                                     , fillcolor
+                                     , 3
+                                     , LineType.EightConnected
+                                     , 0
+                                     , 30.0 / rvalSegment.linesegment.Length);
+
+                CvInvoke.DrawMarker(imgResult, System.Drawing.Point.Round(MyP1), new MCvScalar(255,128,128,255), MarkerTypes.Cross, 40, 1);
+                CvInvoke.DrawMarker(imgResult, System.Drawing.Point.Round(MyP2), new MCvScalar(255, 128, 128, 255), MarkerTypes.Cross, 40, 1);
             }
 
             // We have to find BOTH in order to have a successful return
@@ -611,7 +710,7 @@ namespace SampleOpenCV
 
 
 
-    private void DetectEdges(bool bDoFileOpen)
+    private void DetectEdges(bool bDoFileOpen, bool bShowDebug=false)
     {
         double dLength = Properties.Settings.Default.ResultLength;
         double dWidth = Properties.Settings.Default.ResultWidth;
@@ -634,10 +733,13 @@ namespace SampleOpenCV
 
 
         System.Drawing.Rectangle rc2;
+        
+        bShowDebug = false;
+
 
         if (dLength * dWidth * dScaleFactor <= 0)
         {
-            MessageBox.Show("Please press the Load ARuCo Images button and select a calibration image before attempting this action.");
+            System.Windows.MessageBox.Show("Please press the Load ARuCo Images button and select a calibration image before attempting this action.");
             return;
         }
 
@@ -646,7 +748,7 @@ namespace SampleOpenCV
 
         if (bDoFileOpen)
         {
-            OpenFileDialog openPic = new OpenFileDialog();
+            Microsoft.Win32.OpenFileDialog openPic = new Microsoft.Win32.OpenFileDialog();
             openPic.Multiselect = false;
             openPic.Title = "Open Image";
             if (openPic.ShowDialog() == false)
@@ -661,7 +763,16 @@ namespace SampleOpenCV
 
             openPic.Title = "Open Image With Flash";
             if (openPic.ShowDialog() == true)
+            {
                 szFlashImage = openPic.FileName;
+            }
+            else
+            {
+                if (System.Windows.MessageBox.Show("Do you want to try a single image processing instead of the normal dual processing?", "One Image Only?", MessageBoxButton.YesNo) == System.Windows.MessageBoxResult.No)
+                {
+                    return;
+                }
+            }
 
 
             Title = "MainWindow - Undistort File - " + System.IO.Path.GetFileName(szLastFileName); ;
@@ -674,7 +785,7 @@ namespace SampleOpenCV
                 szOutputPath = System.IO.Path.GetDirectoryName(szOrgImage) + "\\";
                 if (szOrgImage.Length == 0)
                 {
-                    MessageBox.Show("Please select a file using UndistortImage before trying to Redo");
+                    System.Windows.MessageBox.Show("Please select a file using UndistortImage before trying to Redo");
                     return;
                 }
                 Title = "MainWindow - Undistort Recalculating - " + System.IO.Path.GetFileName(szLastFileName);
@@ -705,7 +816,7 @@ namespace SampleOpenCV
         CameraData? cd = this.ctlCameraDataCtl.CameraIPComboBox.SelectedItem as CameraData;
             if (cd == null)
             {
-                MessageBox.Show("A camera has not yet been selected.  Please select one and open the bitmaps again.");
+                System.Windows.MessageBox.Show("A camera has not yet been selected.  Please select one and open the bitmaps again.");
                 return;
             }
 
@@ -720,7 +831,8 @@ namespace SampleOpenCV
                                                             , Warp.Default
                                                             , BorderType.Default
                                                             , new Bgr(0, 0, 0));
-            cvimgColor.Save(szOutputPath + "goofy00x01.png");
+            // if (bShowDebug)
+                cvimgColor.Save(szOutputPath + "goofy00x01.png");
 
             Emgu.CV.Image<Gray, Byte> cvimgBWSrc = new Emgu.CV.Image<Gray, Byte>(cvimgColorSrc.Size);
             Emgu.CV.Image<Bgr, Byte> cvimgColorDiff = new Emgu.CV.Image<Bgr, Byte>(cvimgColorSrc.Size);
@@ -739,29 +851,35 @@ namespace SampleOpenCV
                                                 , Warp.Default
                                                 , BorderType.Default
                                                 , new Bgr(0, 0, 0));
-                cvimgColorFlash.Save(szOutputPath + "goofy05hh.png");
+                // if (bShowDebug) 
+                    cvimgColorFlash.Save(szOutputPath + "goofy05hh.png");
             }
 
             cvimgColorFlashSub1 = cvimgColorFlash.Sub(cvimgColor);
 
 
             /*******************************************************************
-                * 
-                * MULTIPLY SUB PICTURE
-                * 
-                *******************************************************************/
+            * 
+            * MULTIPLY SUB PICTURE
+            * 
+            *******************************************************************/
             cvimgColorMul500 = cvimgColor.Mul(0.5);
-            cvimgColorMul500.Save(szOutputPath + "goofy01x01-f500 SUB.png");
-            //cvimgColorMul375 = cvimgColor.Mul(0.375);
-            //cvimgColorMul375.Save(szOutputPath + "goofy01x02-f375 SUB.png");
-            cvimgColorMul250 = cvimgColor.Mul(0.250);
-            cvimgColorMul250.Save(szOutputPath + "goofy01x03-f250 SUB.png");
-            cvimgColorMul125 = cvimgColor.Mul(0.125);
-            cvimgColorMul125.Save(szOutputPath + "goofy01x04-f125 SUB.png");
+
+            // if (bShowDebug)
+            {
+                cvimgColorMul500.Save(szOutputPath + "goofy01x01-f500 SUB.png");
+                //cvimgColorMul375 = cvimgColor.Mul(0.375);
+                //cvimgColorMul375.Save(szOutputPath + "goofy01x02-f375 SUB.png");
+                cvimgColorMul250 = cvimgColor.Mul(0.250);
+                cvimgColorMul250.Save(szOutputPath + "goofy01x03-f250 SUB.png");
+                cvimgColorMul125 = cvimgColor.Mul(0.125);
+                cvimgColorMul125.Save(szOutputPath + "goofy01x04-f125 SUB.png");
+            }
 
             cvimgColorDiff = cvimgColorFlashSub1.Sub(cvimgColorMul500);
             cvimgBWSrcDiff = cvimgColorDiff.Convert<Gray, Byte>();
-            cvimgBWSrcDiff.Save(szOutputPath + "goofy01x05-d.png");
+            // if (bShowDebug)
+                cvimgBWSrcDiff.Save(szOutputPath + "goofy01x05-d.png");
 
             cvimgThresholdAdaptive = cvimgColor.Convert<Gray,Byte>().Not().ThresholdAdaptive ( new Gray(255)
                                                                                              , AdaptiveThresholdType.MeanC
@@ -769,16 +887,21 @@ namespace SampleOpenCV
                                                                                              , 11
                                                                                              , new Gray(2));
 
-            Emgu.CV.Image<Gray, byte>[] cvimgContoursChannels = cvimgThresholdAdaptive.Convert<Bgra,Byte>().Split();
+            Emgu.CV.Image<Gray, byte>[] cvimgContoursChannels = null;
+            // if (bShowDebug) 
+            cvimgContoursChannels = cvimgThresholdAdaptive.Convert<Bgra,Byte>().Split();
+
             Emgu.CV.Image<Gray, byte>[] cvimgColorChannels = cvimgColor.Split();
-            cvimgThresholdAdaptive.SmoothMedian(11).Save(szOutputPath + "goofy01-e-MedianAdaptive.png");
+            // if (bShowDebug)
+                cvimgThresholdAdaptive.SmoothMedian(11).Save(szOutputPath + "goofy01-e-MedianAdaptive.png");
 
             cvimgColorChannels[0] = cvimgColorChannels[0].Not().ThresholdAdaptive( new Gray(255)
                                                                                  , AdaptiveThresholdType.GaussianC
                                                                                  , Emgu.CV.CvEnum.ThresholdType.BinaryInv
                                                                                  , 11
                                                                                  , new Gray(3));
-            cvimgColorChannels[0].SmoothMedian(5).Save(szOutputPath + "goofy01-f-B-MedianAdaptive.png");
+            // if (bShowDebug)
+                cvimgColorChannels[0].SmoothMedian(5).Save(szOutputPath + "goofy01-f-B-MedianAdaptive.png");
 
 
 
@@ -787,7 +910,8 @@ namespace SampleOpenCV
                                                                                  , Emgu.CV.CvEnum.ThresholdType.BinaryInv
                                                                                  , 11
                                                                                  , new Gray(3));
-            cvimgColorChannels[1].SmoothMedian(5).Save(szOutputPath + "goofy01-f-G-MedianAdaptive.png");
+            // if (bShowDebug)
+                cvimgColorChannels[1].SmoothMedian(5).Save(szOutputPath + "goofy01-f-G-MedianAdaptive.png");
 
 
 
@@ -796,51 +920,69 @@ namespace SampleOpenCV
                                                                                  , Emgu.CV.CvEnum.ThresholdType.BinaryInv
                                                                                  , 11
                                                                                  , new Gray(3));
-            cvimgColorChannels[2].SmoothMedian(5).Save(szOutputPath + "goofy01-f-R-MedianAdaptive.png");
+            // if (bShowDebug)
+                cvimgColorChannels[2].SmoothMedian(5).Save(szOutputPath + "goofy01-f-R-MedianAdaptive.png");
 
 
 
             cvimgThresholdAdaptive = cvimgColorChannels[2].Or(cvimgColorChannels[1]).Or(cvimgColorChannels[0]);
-            cvimgThresholdAdaptive.SmoothMedian(5).Save(szOutputPath + "goofy01-f-MergedBGR-MedianAdaptive.png");
+            // if (bShowDebug)
+                cvimgThresholdAdaptive.SmoothMedian(5).Save(szOutputPath + "goofy01-f-MergedBGR-MedianAdaptive.png");
 
-            Emgu.CV.Image<Bgr, Byte> cvimgColorAdaptive = new Emgu.CV.Image<Bgr, byte>(cvimgColorChannels);
+            // if (bShowDebug)
+            {
+                Emgu.CV.Image<Bgr, Byte> cvimgColorAdaptive = new Emgu.CV.Image<Bgr, byte>(cvimgColorChannels);
 
-            cvimgColorAdaptive.SmoothMedian(5).Save(szOutputPath + "goofy01-f-BGR-MedianAdaptive.png");
+                cvimgColorAdaptive.SmoothMedian(5).Save(szOutputPath + "goofy01-f-BGR-MedianAdaptive.png");
+
+                cvimgThresholdAdaptive = cvimgColor.Convert<Gray, Byte>().Not().ThresholdAdaptive(new Gray(255)
+                                                                                                 , AdaptiveThresholdType.GaussianC
+                                                                                                 , Emgu.CV.CvEnum.ThresholdType.BinaryInv
+                                                                                                 , 11
+                                                                                                 , new Gray(3));
+                cvimgThresholdAdaptive = cvimgThresholdAdaptive.SmoothMedian(5);
+                cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-f-MedianAdaptive.png");
+            }
+
+            // if (bShowDebug)
+            {
 
 
-
-
-
-            cvimgThresholdAdaptive = cvimgColor.Convert<Gray, Byte>().Not().ThresholdAdaptive(new Gray(255)
-                                                                                             , AdaptiveThresholdType.GaussianC
-                                                                                             , Emgu.CV.CvEnum.ThresholdType.BinaryInv
-                                                                                             , 11
-                                                                                             , new Gray(3));
-            cvimgThresholdAdaptive = cvimgThresholdAdaptive.SmoothMedian(5);
-            cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-f-MedianAdaptive.png");
-
-
-            Emgu.CV.XImgproc.XImgprocInvoke.Thinning(cvimgThresholdAdaptive, cvimgThresholdAdaptive, Emgu.CV.XImgproc.ThinningTypes.GuoHall);
-            cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-f-Thinned.png");
+                Emgu.CV.XImgproc.XImgprocInvoke.Thinning(cvimgThresholdAdaptive, cvimgThresholdAdaptive, Emgu.CV.XImgproc.ThinningTypes.GuoHall);
+                cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-f-Thinned.png");
+            }
 
 
 
             cvimgThresholdAdaptive = cvimgBWSrcDiff.Not().ThresholdAdaptive(new Gray(255), AdaptiveThresholdType.MeanC, Emgu.CV.CvEnum.ThresholdType.BinaryInv, 11, new Gray(1));
-            cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-d-Adaptive.png");
+            // if (bShowDebug)
+            {
+                cvimgThresholdAdaptive.Save(szOutputPath + "goofy01-d-Adaptive.png");
+            }
+
             Emgu.CV.Image<Gray,Byte> cvimgThresholdAdaptiveDilate = cvimgThresholdAdaptive.Dilate(16);//.Save(szOutputPath + "goofy01-d-Adaptive Dilate 16.png");
-            cvimgThresholdAdaptiveDilate.Save(szOutputPath + "goofy01-d-AdaptiveDilated.png");
+            // if (bShowDebug) 
+            {
+                cvimgThresholdAdaptiveDilate.Save(szOutputPath + "goofy01-d-AdaptiveDilated.png");
+            }
 
             Emgu.CV.Image<Gray, Byte> cvimgThresholdAdaptiveMedian = new Emgu.CV.Image<Gray,Byte>(cvimgThresholdAdaptive.Size);
             CvInvoke.MedianBlur(cvimgThresholdAdaptive, cvimgThresholdAdaptiveMedian, 5);
-            cvimgContoursChannels[0].SetZero();
-            cvimgContoursChannels[1].SetZero();
-            cvimgContoursChannels[2] = cvimgContoursChannels[3] = cvimgThresholdAdaptiveMedian;
+            // if (bShowDebug)
+            {
+                cvimgContoursChannels[0].SetZero();
+                cvimgContoursChannels[1].SetZero();
+                cvimgContoursChannels[2] = cvimgContoursChannels[3] = cvimgThresholdAdaptiveMedian;
 
-            (new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels)).Save(szOutputPath + "goofy01-e-Median-Red.png");
+                (new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels)).Save(szOutputPath + "goofy01-e-Median-Red.png");
+            }
 
-            Emgu.CV.Image<Gray, Byte> cvimgDistance = new Emgu.CV.Image<Gray, Byte>(cvimgThresholdAdaptive.Size);
-            CvInvoke.DistanceTransform(cvimgThresholdAdaptiveMedian, cvimgDistance, null, DistType.L1, 3);
-            cvimgDistance.Save(szOutputPath + "goofy01-d-AdaptiveDistance.png");
+            // if (bShowDebug) 
+            { 
+                Emgu.CV.Image<Gray, Byte> cvimgDistance = new Emgu.CV.Image<Gray, Byte>(cvimgThresholdAdaptive.Size);
+                CvInvoke.DistanceTransform(cvimgThresholdAdaptiveMedian, cvimgDistance, null, DistType.L1, 3);
+                cvimgDistance.Save(szOutputPath + "goofy01-d-AdaptiveDistance.png");
+            }
 
 
             /*
@@ -877,19 +1019,24 @@ namespace SampleOpenCV
             //Emgu.CV.XImgproc.XImgprocInvoke.Thinning()
 
             Emgu.CV.Image<Gray, Byte> cvimgThresholdBWDiff = cvimgBWSrcDiff.ThresholdBinaryInv(new Gray(10), new Gray(255));
-            cvimgThresholdBWDiff.Save(szOutputPath + "goofy01x06-ThreshDiff.png");
+            // if (bShowDebug)
+                cvimgThresholdBWDiff.Save(szOutputPath + "goofy01x06-ThreshDiff.png");
 
             int nNumRetries = 0;
 
             TryAnotherErode:
             Emgu.CV.Image<Gray, Byte> cvimgThresholdBWDiffEroded = cvimgThresholdBWDiff.Erode(16);
-            cvimgThresholdBWDiffEroded.Save(szOutputPath + "goofy01x07-ThreshDiff Eroded by 16 - " + nNumRetries.ToString() + ".png");
+
+            // if (bShowDebug)
+                cvimgThresholdBWDiffEroded.Save(szOutputPath + "goofy01x07-ThreshDiff Eroded by 16 - " + nNumRetries.ToString() + ".png");
 
 
             int nLargestContourInd = -1;
             int nLargestContourSize = 0;
             Emgu.CV.Image<Bgra, byte> cvimgContours = new Image<Bgra, Byte>(cvimgThresholdBWDiffEroded.Width, cvimgThresholdBWDiffEroded.Height);
-            cvimgContoursChannels = cvimgContours.Split();
+
+            // if (bShowDebug)
+                cvimgContoursChannels = cvimgContours.Split();
 
             using (VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint())
             {
@@ -946,7 +1093,9 @@ namespace SampleOpenCV
                         {
                             rectContours.Push(approx);
                             objectContours.Push(contours[i]);
-                            CvInvoke.DrawContours(cvimgContours, contours, i, new MCvScalar(255,255,255,255), 1);
+
+                            // if (bShowDebug)
+                                CvInvoke.DrawContours(cvimgContours, contours, i, new MCvScalar(255,255,255,255), 1);
                         }
                     }
                 }
@@ -964,20 +1113,26 @@ namespace SampleOpenCV
 
 
                 // Save the outlines of the contours that are smaller than the biggest
-                cvimgContours.Save(szOutputPath + "goofy01x12 - White Outlines.png");
+                // if (bShowDebug) 
+                    cvimgContours.Save(szOutputPath + "goofy01x12 - White Outlines.png");
 
 
 
 
                 Emgu.CV.Image<Gray, Byte> cvimgHoughLinesGray = new Emgu.CV.Image<Gray, byte>(cvimgContours.Size);
-                Emgu.CV.Image<Gray, Byte> cvimgThickWhiteOutline = cvimgContours.Convert<Gray, byte>().Dilate(5);
-                cvimgContoursChannels[0] = cvimgThickWhiteOutline;
-                cvimgContoursChannels[1] = cvimgThickWhiteOutline;
-                cvimgContoursChannels[2] = cvimgThickWhiteOutline;
-                cvimgContoursChannels[3] = cvimgThickWhiteOutline;
 
-                cvimgContours = new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels);
-                cvimgContours.Save(szOutputPath + "goofy01x12 - White Outlines Thick.png");
+                Emgu.CV.Image<Gray, Byte> cvimgThickWhiteOutline = cvimgContours.Convert<Gray, byte>().Dilate(5);
+                // if (bShowDebug)
+                {
+                    cvimgContoursChannels[0] = cvimgThickWhiteOutline;
+                    cvimgContoursChannels[1] = cvimgThickWhiteOutline;
+                    cvimgContoursChannels[2] = cvimgThickWhiteOutline;
+                    cvimgContoursChannels[3] = cvimgThickWhiteOutline;
+
+                    cvimgContours = new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels);
+                    cvimgContours.Save(szOutputPath + "goofy01x12 - White Outlines Thick.png");
+                }
+
 
                 double rho = 0.5;
                 double theta = Math.PI / 1440.0;
@@ -1000,15 +1155,16 @@ namespace SampleOpenCV
                     cvimgHoughLinesGray.Draw(line, new Gray(255), 1);
                 cvimgHoughLinesGray = cvimgHoughLinesGray.Dilate(2);
 
-                cvimgContoursChannels[0].SetZero();
-                cvimgContoursChannels[1] = cvimgHoughLinesGray;
-                cvimgContoursChannels[2].SetZero();
-                cvimgContoursChannels[3] = cvimgHoughLinesGray;
+                // if (bShowDebug)
+                {
+                    cvimgContoursChannels[0].SetZero();
+                    cvimgContoursChannels[1] = cvimgHoughLinesGray;
+                    cvimgContoursChannels[2].SetZero();
+                    cvimgContoursChannels[3] = cvimgHoughLinesGray;
 
-                cvimgContours = new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels);
-                cvimgContours.Save(szOutputPath + "goofy01x12 - HoughLines.png");
-
-
+                    cvimgContours = new Emgu.CV.Image<Bgra, Byte>(cvimgContoursChannels);
+                    cvimgContours.Save(szOutputPath + "goofy01x12 - HoughLines.png");
+                }
 
                 rho = 0.5;
                 theta = Math.PI / 1440.0;
@@ -1050,14 +1206,19 @@ namespace SampleOpenCV
                 Emgu.CV.Image<Gray, float> cvimgHarrisCorner = null;                
                 Emgu.CV.Image<Gray, Byte>[] cvimgHarrisThreshold = null;
                 Emgu.CV.Image<Bgr, Byte> cvimgHarrisThresholdBgr = new Emgu.CV.Image<Bgr, Byte>(cvimgContours.Size);
-                Emgu.CV.Image<Bgra, Byte> cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte>(cvimgContours.Size);
+                Emgu.CV.Image<Bgra, Byte> cvimgHarrisThresholdBgra = null;
                 Emgu.CV.Image<Gray, float> cvimgHarrisThresholdGray = new Emgu.CV.Image<Gray, float>(cvimgContours.Size);
                 Emgu.CV.Image<Gray, Byte> cvimgHarrisThresholdMask = new Emgu.CV.Image<Gray, Byte>(cvimgContours.Size);
 
+                cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte>(cvimgContours.Size);
                 cvimgHarrisThreshold = cvimgHarrisThresholdBgra.Split();
                 cvimgHarrisThreshold[3].SetValue(255);
-                cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte> (cvimgHarrisThreshold);
-                cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy00x00-Black.png");
+
+                // if (bShowDebug)
+                {
+                    cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold);
+                    cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy00x00-Black.png");
+                }
 
                 /*
                 cvimgHarrisThreshold[0] = new Image<Gray, Byte>(cvimgContours.Size);
@@ -1083,52 +1244,69 @@ namespace SampleOpenCV
                     int ncnt2 = CvInvoke.CountNonZero(cvimgHarrisSource);
 
                     CvInvoke.FillPoly(cvimgHarrisSource, obj, new MCvScalar(255));
-                    cvimgHarrisThreshold[0] = cvimgHarrisSource.Copy();
-                    cvimgHarrisThreshold[1].SetZero();
-                    cvimgHarrisThreshold[2].SetZero();
-                    cvimgHarrisThreshold[3] = cvimgHarrisSource.Copy(); 
-                    cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold);
-                    cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x08-Harris Source-" + i.ToString("D3") + ".png");
-                    
-                    int ncnt1 = CvInvoke.CountNonZero(cvimgHarrisSource);
+                    // if (bShowDebug)
+                    {
+                        cvimgHarrisThreshold[0] = cvimgHarrisSource.Copy();
+                        cvimgHarrisThreshold[1].SetZero();
+                        cvimgHarrisThreshold[2].SetZero();
+                        cvimgHarrisThreshold[3] = cvimgHarrisSource.Copy();
+                        cvimgHarrisThresholdBgra = new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold);
+                        cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x08-Harris Source-" + i.ToString("D3") + ".png");
+                    }
+
+                    // if (bShowDebug)
+                    {
+                        int ncnt1 = CvInvoke.CountNonZero(cvimgHarrisSource);
+                    }
 
                     CvInvoke.CornerHarris(cvimgHarrisSource, cvimgHarrisCorner, 7, 15, 0.04);
 
-                    int ncnt4 = CvInvoke.CountNonZero(cvimgHarrisSource);
+                    // if (bShowDebug)
+                    {
+                        int ncnt4 = CvInvoke.CountNonZero(cvimgHarrisSource);
+                    }
 
-                    double[] dMinValue = new double[1];
-                    double[] dMaxValue = new double[1];
-                    System.Drawing.Point[] ptMinLoc;//= new System.Drawing.Point[3];
-                    System.Drawing.Point[] ptMaxLoc;// = new System.Drawing.Point[3];
+                    // if (bShowDebug)
+                    {
+                        double[] dMinValue = new double[1];
+                        double[] dMaxValue = new double[1];
+                        System.Drawing.Point[] ptMinLoc;//= new System.Drawing.Point[3];
+                        System.Drawing.Point[] ptMaxLoc;// = new System.Drawing.Point[3];
 
-                    cvimgHarrisCorner.MinMax(out dMinValue, out dMaxValue, out ptMinLoc, out ptMaxLoc);
-                    float dThresh = 0.1f * (float)dMaxValue[0];
-                    //cvimgHarrisThreshold = cvimgHarrisThresholdBgra.Split();
+                        cvimgHarrisCorner.MinMax(out dMinValue, out dMaxValue, out ptMinLoc, out ptMaxLoc);
+                        float dThresh = 0.1f * (float)dMaxValue[0];
+                    }
+
 
                     CvInvoke.Threshold(cvimgHarrisCorner, cvimgHarrisThresholdGray, 0.0001, 255, Emgu.CV.CvEnum.ThresholdType.Binary);
                     cvimgHarrisThresholdMask = cvimgHarrisThresholdGray.Convert<Gray, Byte>();
-                    cvimgHarrisThreshold[0].SetZero();
-                    cvimgHarrisThreshold[1].SetZero();
-                    cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdMask;
-                    cvimgHarrisThresholdBgra = (new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold));
-                    cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x09-Harris Threshold Thin Gray-" + i.ToString("D3") + ".png");
+                    // if (bShowDebug)
+                    {
+                        cvimgHarrisThreshold = cvimgHarrisThresholdBgra.Split();
+                        cvimgHarrisThreshold[0].SetZero();
+                        cvimgHarrisThreshold[1].SetZero();
+                        cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdMask;
+                        cvimgHarrisThresholdBgra = (new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold));
+                        cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x09-Harris Threshold Thin Gray-" + i.ToString("D3") + ".png");
 
-                    //cvimgHarrisThresholdMask = cvimgHarrisThresholdMask.Dilate(5);
-                    cvimgHarrisThreshold[0].SetZero();
-                    cvimgHarrisThreshold[1].SetZero ();
-                    cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdMask;
-                    //                    cvimgHarrisThreshold[2].Copy(cvimgHarrisThresholdGray);
-                    cvimgHarrisThreshold[2].Save(szOutputPath + "goofy01x09-Harris Threshold Gray Copy-" + i.ToString("D3") + ".png");
-                    cvimgHarrisThresholdGray.Save(szOutputPath + "goofy01x09-Harris Threshold Gray-" + i.ToString("D3") + ".png");
+                        //cvimgHarrisThresholdMask = cvimgHarrisThresholdMask.Dilate(5);
+                        cvimgHarrisThreshold[0].SetZero();
+                        cvimgHarrisThreshold[1].SetZero();
+                        cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdMask;
+                        //                    cvimgHarrisThreshold[2].Copy(cvimgHarrisThresholdGray);
+                        cvimgHarrisThreshold[2].Save(szOutputPath + "goofy01x09-Harris Threshold Gray Copy-" + i.ToString("D3") + ".png");
+                        cvimgHarrisThresholdGray.Save(szOutputPath + "goofy01x09-Harris Threshold Gray-" + i.ToString("D3") + ".png");
 
-                    cvimgHarrisThresholdBgra = (new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold));
-                    //cvimgHarrisCorner.Save(szOutputPath + "goofy01x09-Harris Corner\" + i.ToString("D3") + \".png");
-                    cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x10-Harris Threshold-" + i.ToString("D3") + ".png");
+                        cvimgHarrisThresholdBgra = (new Emgu.CV.Image<Bgra, Byte>(cvimgHarrisThreshold));
+                        //cvimgHarrisCorner.Save(szOutputPath + "goofy01x09-Harris Corner\" + i.ToString("D3") + \".png");
+                        cvimgHarrisThresholdBgra.Save(szOutputPath + "goofy01x10-Harris Threshold-" + i.ToString("D3") + ".png");
+                    }
+
 
 
                     //Emgu.CV.Image<Bgr,Byte>
                     //CvInvoke.Merge(cvimgHarrisThreshold.Save(szOutputPath + "goofy01x10-Harris Threshold-" + i.ToString("D3") + ".png");
-                    
+
 
                     ptarr = new List<System.Drawing.Point>();
                     pttemparr = new List<System.Drawing.Point>();
@@ -1276,6 +1454,10 @@ namespace SampleOpenCV
                                 vecCorner.Clear();
                             }
                         }
+                        if (pttemparr.Count==0 && vecCorner.Count > 0)
+                        {
+
+                        }
 
                         if (pttemparr.Count>3)
                         {
@@ -1327,17 +1509,17 @@ namespace SampleOpenCV
                                     PointF pfm = ptm;
                                     PointF pfo = ptOneSmallest;
                                     PointF pft = ptTwoSmallest;
-                                    Vector pvj = new Vector(pfj.X, pfj.Y);
-                                    Vector pvm = new Vector(pfm.X, pfm.Y);
-                                    Vector pvo = new Vector(pfo.X, pfo.Y);
-                                    Vector pvt = new Vector(pft.X, pft.Y);
-                                    Vector pvto = pvt - pvo;
-                                    Vector pvmj = pvm - pvj;
-                                    Vector pvoj = pvo - pvj;
-                                    Vector pvmo = pvm - pvo;
-                                    Vector pvmt = pvm - pvt;
-                                    Vector pvtj = pvt - pvj;
-                                    Vector phorz = new Vector(100, 0);
+                                    System.Windows.Vector pvj = new System.Windows.Vector(pfj.X, pfj.Y);
+                                    System.Windows.Vector pvm = new System.Windows.Vector(pfm.X, pfm.Y);
+                                    System.Windows.Vector pvo = new System.Windows.Vector(pfo.X, pfo.Y);
+                                    System.Windows.Vector pvt = new System.Windows.Vector(pft.X, pft.Y);
+                                    System.Windows.Vector pvto = pvt - pvo;
+                                    System.Windows.Vector pvmj = pvm - pvj;
+                                    System.Windows.Vector pvoj = pvo - pvj;
+                                    System.Windows.Vector pvmo = pvm - pvo;
+                                    System.Windows.Vector pvmt = pvm - pvt;
+                                    System.Windows.Vector pvtj = pvt - pvj;
+                                    System.Windows.Vector phorz = new System.Windows.Vector(100, 0);
 
                                     bool rval;
 
@@ -1347,27 +1529,29 @@ namespace SampleOpenCV
                                                           , ptm);
                                     if (rval == false)
                                     {
-                                        CvInvoke.DrawMarker(cvimgContours
-                                            , ptm
-                                            , new MCvScalar(0, 255, 0, 255)
-                                            , MarkerTypes.Diamond
-                                            , 10);
+                                        // if (bShowDebug)
+                                            CvInvoke.DrawMarker(cvimgContours
+                                                , ptm
+                                                , new MCvScalar(0, 255, 0, 255)
+                                                , MarkerTypes.Diamond
+                                                , 10);
 
                                        uniquePoints.Add(new IndexedPoint(ptm, m));
                                     }
                                     else
                                     {
-                                        CvInvoke.DrawMarker(cvimgContours
-                                            , ptm
-                                            , new MCvScalar(0, 0, 255, 255)
-                                            , MarkerTypes.Square
-                                            , 10);
+                                        // if (bShowDebug)
+                                            CvInvoke.DrawMarker(cvimgContours
+                                                , ptm
+                                                , new MCvScalar(0, 0, 255, 255)
+                                                , MarkerTypes.Square
+                                                , 10);
                                     }
 
                                     // Edge one
                                     if (rval == false && pvoj.Length > 100 && pvmj.Length>100 && pvmo.Length>100)
                                     {
-                                        angleTest = Vector.AngleBetween(pvmj, pvoj);
+                                        angleTest = System.Windows.Vector.AngleBetween(pvmj, pvoj);
                                         if (Math.Abs(angleTest) < 0.5) // Math.Min(0.5, 500.0 / pvmj.Length))
                                         {
                                             // Check to see if this is an edge or a true corner
@@ -1389,7 +1573,7 @@ namespace SampleOpenCV
                                     // Edge two
                                     if (rval == false && pvtj.Length > 100 && pvmj.Length > 100 && pvmt.Length > 100)
                                     {
-                                        angleTest = Vector.AngleBetween(pvmj, pvtj);
+                                        angleTest = System.Windows.Vector.AngleBetween(pvmj, pvtj);
                                         if (Math.Abs(angleTest) < 0.5) // Math.Min(0.5, 500.0 / pvmj.Length))
                                         {
                                             if (pvmj.Length > dLineTwoMaxLen)
@@ -1405,10 +1589,14 @@ namespace SampleOpenCV
                                     }
                                 }
                             }
-                            if (nLineOneCnt>0)
-                                CvInvoke.Line(cvimgContours, possibleLineOneP1[nLineOneLongest], possibleLineOneP2[nLineOneLongest], new MCvScalar(255, 0, 0, 255));
-                            if (nLineTwoCnt > 0)
-                                CvInvoke.Line(cvimgContours, possibleLineTwoP1[nLineTwoLongest], possibleLineTwoP2[nLineTwoLongest], new MCvScalar(0, 255, 0, 255));
+
+                            // if (bShowDebug)
+                            {
+                                if (nLineOneCnt > 0)
+                                    CvInvoke.Line(cvimgContours, possibleLineOneP1[nLineOneLongest], possibleLineOneP2[nLineOneLongest], new MCvScalar(255, 0, 0, 255));
+                                if (nLineTwoCnt > 0)
+                                    CvInvoke.Line(cvimgContours, possibleLineTwoP1[nLineTwoLongest], possibleLineTwoP2[nLineTwoLongest], new MCvScalar(0, 255, 0, 255));
+                            }
                         }
 
                         // Sort the hash list by index
@@ -1416,20 +1604,23 @@ namespace SampleOpenCV
                         Array.Sort(sortedPoints, new IndexedPointComparer());
 
                         ntempcnt = sortedPoints.Length;
-                        System.Drawing.Point[] polylinePts = IndexedPoint.ToArray(sortedPoints);
-                        cvimgContours.DrawPolyline(polylinePts, true, new Bgra(63, 63, 63, 255));
+                        // if (bShowDebug)
+                        {
+                            System.Drawing.Point[] polylinePts = IndexedPoint.ToArray(sortedPoints);
+                            cvimgContours.DrawPolyline(polylinePts, true, new Bgra(63, 63, 63, 255));
+                        }
 
                         // Now, loop through the pttemparr we just obtained
-                        
+
                         if (sortedPoints.Length > 3)
                         {
                             List<System.Drawing.Point> ptArrFinal = new List<System.Drawing.Point>();
                             List<System.Drawing.Point> ptArrTemp = new List<System.Drawing.Point>();
                             PointF pfo = ptOneSmallest;
                             PointF pft = ptTwoSmallest;
-                            Vector pvo = new Vector(pfo.X, pfo.Y);
-                            Vector pvt = new Vector(pft.X, pft.Y);
-                            Vector pvto = pvt - pvo;
+                            System.Windows.Vector pvo = new System.Windows.Vector(pfo.X, pfo.Y);
+                            System.Windows.Vector pvt = new System.Windows.Vector(pft.X, pft.Y);
+                            System.Windows.Vector pvto = pvt - pvo;
 
 
                             // Convert loop to line segments.  They will end up with the same order and
@@ -1441,10 +1632,10 @@ namespace SampleOpenCV
                             {
                                 PointF pfj1 = sortedPoints[j].pt;
                                 PointF pfj2 = sortedPoints[(j+1)%ntempcnt].pt;
-                                Vector pvj1 = new Vector(pfj1.X, pfj1.Y);
-                                Vector pvj2 = new Vector(pfj2.X, pfj2.Y);
-                                Vector pvj12 = pvj2 - pvj1;
-                                double dTestAngle = Math.Abs(Vector.AngleBetween(pvj12, pvto));
+                                System.Windows.Vector pvj1 = new System.Windows.Vector(pfj1.X, pfj1.Y);
+                                System.Windows.Vector pvj2 = new System.Windows.Vector(pfj2.X, pfj2.Y);
+                                System.Windows.Vector pvj12 = pvj2 - pvj1;
+                                double dTestAngle = Math.Abs(System.Windows.Vector.AngleBetween(pvj12, pvto));
 
                                 if (dTestAngle > 70 && dTestAngle < 110)
                                 {
@@ -1485,7 +1676,7 @@ namespace SampleOpenCV
 
 
 
-                            if (ntempcnt == 4)
+                            if (ntempcnt == 4 && bShowDebug==true)
                             {
                                 ptarr.Clear();
                                 ptarr.AddRange(ptArrFinal);
@@ -1513,86 +1704,96 @@ namespace SampleOpenCV
                                 for (j = 0; j < ntempcnt; j++)
                                 {
                                     ptCenter = sortedPoints[(j - 1 + ntempcnt) % ntempcnt].pt;
-                                    ptOne    = sortedPoints[j].pt;
-                                    ptTwo    = sortedPoints[(j + 1) % ntempcnt].pt;
+                                    ptOne = sortedPoints[j].pt;
+                                    ptTwo = sortedPoints[(j + 1) % ntempcnt].pt;
 
                                     // What is the offset?
                                     Emgu.CV.Structure.LineSegment2D segOne = new Emgu.CV.Structure.LineSegment2D(ptCenter, ptOne);
                                     Emgu.CV.Structure.LineSegment2D segTwo = new Emgu.CV.Structure.LineSegment2D(ptCenter, ptTwo);
-                                    PointF segOneDir = segOne.Direction;
-                                    PointF segTwoDir = segTwo.Direction;
 
-                                    // Get the count of filled pixels above seg one
-                                    nNumAboveOne = CountFilledGrayPoints ( ref cvimgHarrisSource
-                                                                      , ptOne.X + (int)(segOneDir.Y * 3.0)
-                                                                      , ptOne.Y - (int)(segOneDir.X * 3.0)
-                                                                      , ptCenter.X + (int)(segOneDir.Y * 3.0)
-                                                                      , ptCenter.Y - (int)(segOneDir.X * 3.0)
-                                                                        );
-
-                                    // Get the count of filled pixels below seg one
-                                    nNumBelowOne = CountFilledGrayPoints(ref cvimgHarrisSource
-                                                                      , ptOne.X - (int)(segOneDir.Y * 3.0)
-                                                                      , ptOne.Y + (int)(segOneDir.X * 3.0)
-                                                                      , ptCenter.X - (int)(segOneDir.Y * 3.0)
-                                                                      , ptCenter.Y + (int)(segOneDir.X * 3.0)
-                                                                        );
-
-
-                                    // Get the count of filled pixels above seg two
-                                    nNumAboveTwo = CountFilledGrayPoints(ref cvimgHarrisSource
-                                                                      , ptTwo.X + (int)(segTwoDir.Y * 3.0)
-                                                                      , ptTwo.Y - (int)(segTwoDir.X * 3.0)
-                                                                      , ptCenter.X + (int)(segTwoDir.Y * 3.0)
-                                                                      , ptCenter.Y - (int)(segTwoDir.X * 3.0)
-                                                                        );
-
-                                    // Get the count of filled pixels below seg two
-                                    nNumBelowTwo = CountFilledGrayPoints(ref cvimgHarrisSource
-                                                                      , ptTwo.X - (int)(segTwoDir.Y * 3.0)
-                                                                      , ptTwo.Y + (int)(segTwoDir.X * 3.0)
-                                                                      , ptCenter.X - (int)(segTwoDir.Y * 3.0)
-                                                                      , ptCenter.Y + (int)(segTwoDir.X * 3.0)
-                                                                        );
-
-                                    if (nNumBelowTwo+nNumAboveTwo > nNumAboveOne + nNumBelowOne)
+                                    // if (bShowDebug)
                                     {
+                                        PointF segOneDir = segOne.Direction;
+                                        PointF segTwoDir = segTwo.Direction;
+
+                                        // Get the count of filled pixels above seg one
+                                        nNumAboveOne = CountFilledGrayPoints(ref cvimgHarrisSource
+                                                                          , ptOne.X + (int)(segOneDir.Y * 3.0)
+                                                                          , ptOne.Y - (int)(segOneDir.X * 3.0)
+                                                                          , ptCenter.X + (int)(segOneDir.Y * 3.0)
+                                                                          , ptCenter.Y - (int)(segOneDir.X * 3.0)
+                                                                            );
+
+                                        // Get the count of filled pixels below seg one
+                                        nNumBelowOne = CountFilledGrayPoints(ref cvimgHarrisSource
+                                                                          , ptOne.X - (int)(segOneDir.Y * 3.0)
+                                                                          , ptOne.Y + (int)(segOneDir.X * 3.0)
+                                                                          , ptCenter.X - (int)(segOneDir.Y * 3.0)
+                                                                          , ptCenter.Y + (int)(segOneDir.X * 3.0)
+                                                                            );
+
+
+                                        // Get the count of filled pixels above seg two
+                                        nNumAboveTwo = CountFilledGrayPoints(ref cvimgHarrisSource
+                                                                          , ptTwo.X + (int)(segTwoDir.Y * 3.0)
+                                                                          , ptTwo.Y - (int)(segTwoDir.X * 3.0)
+                                                                          , ptCenter.X + (int)(segTwoDir.Y * 3.0)
+                                                                          , ptCenter.Y - (int)(segTwoDir.X * 3.0)
+                                                                            );
+
+                                        // Get the count of filled pixels below seg two
+                                        nNumBelowTwo = CountFilledGrayPoints(ref cvimgHarrisSource
+                                                                          , ptTwo.X - (int)(segTwoDir.Y * 3.0)
+                                                                          , ptTwo.Y + (int)(segTwoDir.X * 3.0)
+                                                                          , ptCenter.X - (int)(segTwoDir.Y * 3.0)
+                                                                          , ptCenter.Y + (int)(segTwoDir.X * 3.0)
+                                                                            );
+
+                                        if (nNumBelowTwo + nNumAboveTwo > nNumAboveOne + nNumBelowOne)
+                                        {
+
+                                        }
+                                        else
+                                        {
+
+                                        }
 
                                     }
-                                    else
-                                    {
-
-                                    }
-
 
                                     double dAngle = Math.Abs(segOne.GetExteriorAngleDegree(segTwo));
                                     if (dAngle < 110.0)
                                     {
                                         ptarr.Add(ptCenter);
-                                        CvInvoke.DrawMarker(cvimgContours
-                                                                , ptCenter
-                                                                , new MCvScalar(255, 0, 255, 255)
-                                                                , MarkerTypes.Cross
-                                                                , 20);
+                                        // if (bShowDebug)
+                                        {
+                                            CvInvoke.DrawMarker(cvimgContours
+                                                                    , ptCenter
+                                                                    , new MCvScalar(255, 0, 255, 255)
+                                                                    , MarkerTypes.Cross
+                                                                    , 20);
+                                        }
                                     }
                                 }
                             }
                         }
 
 
-                        CvInvoke.DrawMarker(cvimgContours
-                        , ptOneSmallest
-                        , new MCvScalar(255, 0, 255, 255)
-                        , MarkerTypes.Cross
-                        , 50
-                        , 3);
-                        CvInvoke.DrawMarker(cvimgContours
-                        , ptTwoSmallest
-                        , new MCvScalar(255, 0, 255, 255)
-                        , MarkerTypes.Cross
-                        , 50
-                        , 3);
-                        CvInvoke.Line(cvimgContours, ptOneSmallest, ptTwoSmallest, new MCvScalar(255,0,255,255));
+                        // if (bShowDebug)
+                        {
+                            CvInvoke.DrawMarker(cvimgContours
+                            , ptOneSmallest
+                            , new MCvScalar(255, 0, 255, 255)
+                            , MarkerTypes.Cross
+                            , 50
+                            , 3);
+                            CvInvoke.DrawMarker(cvimgContours
+                            , ptTwoSmallest
+                            , new MCvScalar(255, 0, 255, 255)
+                            , MarkerTypes.Cross
+                            , 50
+                            , 3);
+                            CvInvoke.Line(cvimgContours, ptOneSmallest, ptTwoSmallest, new MCvScalar(255,0,255,255));
+                        }
                     }
                     else
                     {
@@ -1717,17 +1918,19 @@ namespace SampleOpenCV
                     */
                 }
 
+                // if (bShowDebug)
+                {
+                    cvimgHarrisThreshold[0].SetZero();
+                    cvimgHarrisThreshold[1].SetZero();
+                    cvimgHarrisThreshold[2].SetZero();
+                    cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdGray.Convert<Gray, Byte>();
 
-                cvimgHarrisThreshold[0].SetZero();
-                cvimgHarrisThreshold[1].SetZero();
-                cvimgHarrisThreshold[2].SetZero();
-                cvimgHarrisThreshold[3] = cvimgHarrisThreshold[2] = cvimgHarrisThresholdGray.Convert<Gray, Byte>();
-
-                cvimgContours.Save(szOutputPath + "goofy01x11 - Found Contours Denoised.png");
+                    cvimgContours.Save(szOutputPath + "goofy01x11 - Found Contours Denoised.png");
+                }
 
                 //CvInvoke.DrawContours(cvimgContours, contours, nLargestContourInd, new MCvScalar(255,0,0, 255), 1);
                 //cvimgContours = cvimgContours.Erode(3);
-                
+
 
                 // OK!  Using the corners we've found, along with adaptive threshold, we'll be able 
                 // measure the approximate lengths.  To do this, we'll simply loop from corner to
@@ -1745,6 +1948,15 @@ namespace SampleOpenCV
                     System.Drawing.Point corner1 = objCorners[i][0];
                     System.Drawing.Point corner2 = objCorners[i][1];
                     System.Drawing.Point corner3 = objCorners[i][2];
+                    System.Drawing.Point corner4 = objCorners[i][3];
+                    System.Drawing.Point cornersCenter = (corner1
+                                                        + (System.Drawing.Size)corner2
+                                                        + (System.Drawing.Size)corner3
+                                                        + (System.Drawing.Size)corner4
+                                                          );
+                    cornersCenter.X /= 4;
+                    cornersCenter.Y /= 4;
+                    System.Drawing.Point cornersCenterOrg = cornersCenter;
 
                     Point2D ptCorner1 = new Point2D(corner1.X, corner1.Y);
                     Point2D ptCorner2 = new Point2D(corner2.X, corner2.Y);
@@ -1765,15 +1977,33 @@ namespace SampleOpenCV
                     List<System.Drawing.PointF> listUp   = GenerateLinearOffsets2D(ptOrigin, ptOrigin + angleUp);
                     List<System.Drawing.PointF> listDown = GenerateLinearOffsets2D(ptOrigin, ptOrigin + angleDown);
                     List<System.Drawing.PointF> listHorz = GenerateLinearOffsets2D(ptCorner1, ptCorner2);
+                    List<IndexedLineSegment> listHorzLines = new List<IndexedLineSegment>();
+                    List<IndexedLineSegment> listVertLines = new List<IndexedLineSegment>();
+                    List<IndexedLineSegment> listrval = new List<IndexedLineSegment>();
+                    IndexedLineSegment lineseghrval = new IndexedLineSegment();
+                    IndexedLineSegment linesegvrval = new IndexedLineSegment();
 
                     DistanceToFilledPixel(ref cvimgThresholdAdaptiveMedian
                                              , ref cvimgContours
                                              , ref listHorz
                                              , ref listUp
                                              , ref listDown
-                                             , ref rval1
-                                             , ref rval2
-                                             , new MCvScalar(255, 0, 255, 255));
+                                             , ref listHorzLines
+                                             , ref lineseghrval
+                                             , new MCvScalar(255, 127, 255, 255));
+
+                    // Draw the returned linesegrval
+                    //if (linesegrval != null)
+                    //{
+                    //    CvInvoke.Line ( cvimgContours
+                    //                  , System.Drawing.Point.Round(linesegrval.linesegment.P1)
+                    //                  , System.Drawing.Point.Round(linesegrval.linesegment.P2)
+                    //                  , new MCvScalar(255, 127, 255, 255));
+                    //}
+
+
+
+
 
 
                     angleUp = line2DHorz.Direction * (100 + line2DHorz.Length);
@@ -1784,24 +2014,71 @@ namespace SampleOpenCV
                     listDown = GenerateLinearOffsets2D(ptOrigin, ptOrigin + angleDown);
                     List<System.Drawing.PointF> listVert = GenerateLinearOffsets2D(ptCorner2, ptCorner3);
 
-
-
                     DistanceToFilledPixel(ref cvimgThresholdAdaptiveMedian
                                              , ref cvimgContours
                                              , ref listVert
                                              , ref listUp
                                              , ref listDown
-                                             , ref rval1
-                                             , ref rval2
-                                             , new MCvScalar(0, 255, 255, 255));
+                                             , ref listVertLines
+                                             , ref linesegvrval
+                                             , new MCvScalar(127, 255, 255, 255));
 
-                    curline.P1 = corner1;
-                    curline.P2 = corner2;
-                    cvimgContours.Draw(curline, new Bgra(255, 128, 128, 255), 1);
 
-                    curline.P1 = corner2;
-                    curline.P2 = corner3;
-                    cvimgContours.Draw(curline, new Bgra(255, 128, 128, 255), 1);
+                    //cvimgContours.Save(szOutputPath + "goofy01x12 - Is This It " + i.ToString("DD") + ".png"); ;
+
+
+                    // Draw the returned linesegrval
+                    //if (linesegrval != null)
+                    //{
+                    //    CvInvoke.Line(cvimgContours
+                    //                  , System.Drawing.Point.Round(linesegrval.linesegment.P1)
+                    //                  , System.Drawing.Point.Round(linesegrval.linesegment.P2)
+                    //                  , new MCvScalar(127, 255, 255, 255));
+                    //}
+
+                    string tstr;
+                    System.Drawing.Size size;
+                    int nBaseLine;
+
+                    if (lineseghrval.linesegment.Length > linesegvrval.linesegment.Length)
+                        tstr = "W="
+                                + (lineseghrval.linesegment.Length / dScaleFactor).ToString("0.00")
+                                + "\nH="
+                                + (linesegvrval.linesegment.Length / dScaleFactor).ToString("0.00");
+                    else
+                        tstr = "W="
+                                + (linesegvrval.linesegment.Length / dScaleFactor).ToString("0.00")
+                                + "\nH="
+                                + (lineseghrval.linesegment.Length / dScaleFactor).ToString("0.00");
+
+                    nBaseLine = 0;
+                    System.Drawing.Size sz = Emgu.CV.CvInvoke.GetTextSize(tstr.Split("\n", 2)[0], FontFace.HersheyPlain, 6, 3, ref nBaseLine);
+                    size = new System.Drawing.Size() - sz;
+                    size.Width /= 2;
+
+                    foreach (string sstr in tstr.Split("\n", 2))
+                    {
+                        Emgu.CV.CvInvoke.PutText(cvimgContours, sstr, cornersCenter + size, FontFace.HersheyPlain, 6, new MCvScalar(255, 255, 255, 255), 60);
+                        Emgu.CV.CvInvoke.PutText(cvimgContours, sstr, cornersCenter + size, FontFace.HersheyPlain, 6, new MCvScalar(0, 0, 0, 255), 3);
+                        cornersCenter.Y += 100;
+                    }
+
+
+                    // if (bShowDebug)
+                    {
+                        curline.P1 = corner1;
+                        curline.P2 = corner2;
+                        cvimgContours.Draw(curline, new Bgra(255, 128, 128, 255), 1);
+
+                        curline.P1 = corner2;
+                        curline.P2 = corner3;
+                        cvimgContours.Draw(curline, new Bgra(255, 128, 128, 255), 1);
+                    }
+
+                    // We will draw the arrows and text
+                    //cvimgColorChannels = cvimgColor.Split();
+                    //cvimgContoursChannels = cvimgContours.Split();
+
 
                     // Find the intersection in the up direction
                 }
@@ -1809,6 +2086,7 @@ namespace SampleOpenCV
 
                 cvimgContours.Save(szOutputPath + "goofy01x12 - Is This It.png");
 
+                return;
 
                 /*
                 int nNumIterations = int.Parse(ctlCameraDataCtl.NumIterations.Text);
@@ -1839,7 +2117,6 @@ namespace SampleOpenCV
                 cvimgOutput.Save(szOutputPath + "goofy01x21-MeanShift-Negative.png");*/
 
 
-                return;
 
                 int nNumFoundCont = 0;
 
